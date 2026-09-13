@@ -1,0 +1,32 @@
+{
+  "name": "codedirector",
+  "version": "0.3.0",
+  "description": "Scope contracts, guardrails, and evidence-based change reports for every AI-assisted edit. Draft a Vibe Check, approve the scope, work inside it, get the receipt.",
+  "keywords": ["guardrails", "scope", "verification", "code-review", "agent-safety"],
+  "license": "MIT",
+  "homepage": "https://github.com/Yasirdora/codedirector",
+  "skills": "./codedirector/skills/",
+  "sessionStart": {
+    "skill": "codedirector"
+  },
+  "systemPromptPath": "./codedirector/plugin/SYSTEM.md",
+  "mcpServers": {
+    "codedirector": {
+      "command": "cdir",
+      "args": ["mcp"]
+    }
+  },
+  "hooks": [
+    {
+      "event": "PreToolUse",
+      "matcher": "(?i)(edit|write|create|notebook)",
+      "command": "cdir hook",
+      "timeout": 10
+    }
+  ],
+  "commands": "./codedirector/plugin/commands/",
+  "interface": {
+    "displayName": "Code Director",
+    "shortDescription": "Scope contracts, guardrails, and evidence-based change reports for every AI edit"
+  }
+}
