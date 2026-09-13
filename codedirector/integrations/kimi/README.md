@@ -1,10 +1,49 @@
 # Code Director + Kimi Code CLI
 
+The fastest setup is the **plugin**: one command installs the skill (the
+rulebook), the MCP server (the tools), the enforcement hook (the fence),
+and slash commands. The manual route underneath is documented after it,
+for anyone who wants the pieces separately.
+
+## Plugin install (recommended)
+
+Prerequisite: the `cdir` CLI installed and on your PATH (see the package
+README — `npm install && npm run build && npm link` from this repo, or
+your published install).
+
+Then, inside Kimi Code:
+
+```
+/plugins install https://github.com/Yasirdora/codedirector
+/reload
+```
+
+That single install gives you:
+
+- **the skill** — auto-loaded at every session start, so the agent drafts
+  a Vibe Check and waits for approval before editing;
+- **the MCP server** — the eight tools (`repo_map`, `blast_radius`,
+  `lock_draft`, `lock_check`, `lock_activate`, `run_locked`, `report`,
+  `undo`);
+- **the PreToolUse hook** — edit-tool calls are checked against the active
+  Lock: deny-listed and out-of-budget files are blocked with the reason
+  written back to the agent, and edits with no active Lock get a reminder.
+  The hook fails open on any error, and it cannot see inside shell
+  commands — the after-the-fact verification in `cdir run` remains the
+  hard floor;
+- **slash commands** — `/codedirector:lock <request>` and
+  `/codedirector:report`.
+
+Manage it any time with `/plugins` (enable, disable, remove). Hooks and
+MCP servers can be toggled individually there too.
+
+## Manual setup (the pieces, one by one)
+
 Kimi Code CLI has native support for both of Code Director's hooks: MCP
 servers (the tools) and SKILL.md skills (the rulebook). Setup takes about
 five minutes.
 
-## 1. Install and log in
+### 1. Install and log in
 
 ```sh
 curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash
