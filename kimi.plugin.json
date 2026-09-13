@@ -1,6 +1,6 @@
 {
   "name": "codedirector",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Scope contracts, guardrails, and evidence-based change reports for every AI-assisted edit. Draft a Vibe Check, approve the scope, work inside it, get the receipt.",
   "keywords": ["guardrails", "scope", "verification", "code-review", "agent-safety"],
   "license": "MIT",
