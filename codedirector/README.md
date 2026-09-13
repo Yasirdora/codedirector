@@ -123,6 +123,7 @@ Other MCP-capable agents (Claude Code, Gemini CLI, …) take the same
 `cdir mcp` command in their own MCP config format. Step-by-step setup
 guides: [Kimi Code CLI](integrations/kimi/README.md) (recommended —
 native skill support) · [Gemini CLI](integrations/gemini/README.md) ·
+[Grok Build](integrations/grok-build/README.md) (official xAI CLI) ·
 [Grok CLI](integrations/grok/README.md) (community build; contracts align).
 
 **2. Skill — the rulebook.** Copy [skills/codedirector/SKILL.md](skills/codedirector/SKILL.md)
