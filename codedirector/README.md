@@ -87,15 +87,23 @@ best):
 **1. MCP — the toolbox.** Run `cdir mcp` as an MCP server in your agent's
 config. The agent gains eight tools (`repo_map`, `blast_radius`, `lock_draft`,
 `lock_check`, `lock_activate`, `run_locked`, `report`, `undo`). Example for a
-Kimi Code CLI setup:
+Kimi Code CLI setup — add to `~/.kimi-code/mcp.json`:
 
-```sh
-kimi mcp add codedirector -- cdir mcp
+```json
+{
+  "mcpServers": {
+    "codedirector": {
+      "command": "cdir",
+      "args": ["mcp"]
+    }
+  }
+}
 ```
 
 Other MCP-capable agents (Claude Code, Gemini CLI, …) take the same
-`cdir mcp` command in their own MCP config format. Step-by-step setup for
-Gemini CLI, including its `GEMINI.md` context file: [integrations/gemini](integrations/gemini/README.md).
+`cdir mcp` command in their own MCP config format. Step-by-step setup
+guides: [Kimi Code CLI](integrations/kimi/README.md) (recommended —
+native skill support) · [Gemini CLI](integrations/gemini/README.md).
 
 **2. Skill — the rulebook.** Copy [skills/codedirector/SKILL.md](skills/codedirector/SKILL.md)
 into your agent's skills directory (e.g. `.claude/skills/codedirector/` for
