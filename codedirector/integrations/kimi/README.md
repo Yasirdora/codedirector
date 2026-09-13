@@ -121,3 +121,16 @@ In a scratch project (`mkdir ~/cdir-test && cd ~/cdir-test && git init`):
 - Want a different brain? Kimi Code connects natively to Claude, Gemini,
   and any OpenAI-compatible provider — see [providers.md](providers.md).
   The guardrails work identically on every one.
+
+## Brand theme
+
+The Code Director palette (brand yellow `#FED30B` on the dark base) ships
+at [../../brand/codedirector.json](../../brand/codedirector.json). Install:
+
+```sh
+mkdir -p ~/.kimi-code/themes
+cp <path-to-this-repo>/codedirector/brand/codedirector.json ~/.kimi-code/themes/
+```
+
+Then run `/theme` and pick **Custom: codedirector** — the picker rescans
+the directory each time it opens, no restart needed.
