@@ -118,3 +118,6 @@ In a scratch project (`mkdir ~/cdir-test && cd ~/cdir-test && git init`):
   workflow enforced even in projects where the skill isn't installed.
 - Headless runs (`kimi -p "task"`) load the user-level `mcp.json`, so the
   guardrails work in scripted mode too.
+- Want a different brain? Kimi Code connects natively to Claude, Gemini,
+  and any OpenAI-compatible provider — see [providers.md](providers.md).
+  The guardrails work identically on every one.
