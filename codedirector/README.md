@@ -335,7 +335,12 @@ far as possible, in ladder order (cheapest/strongest first):
 
 1. **Structural (proven)** — re-index; each `api-unchanged` symbol's
    signature hash compared pre/post (types/interfaces/enums include their
-   members; function signatures are not truncated); `no-new-dependency`
+   members; function signatures are not truncated). Overloads share an id
+   (`Store.swift#Store.save` for `save(_: Int)` and `save(_: String)`; a
+   TypeScript function and its overload signatures), and an id's API is all
+   of them: changing, adding or removing any overload is a violation that
+   names it (`save(_ v: Int) → save(_ v: Bool)`); reordering them is not.
+   `cdir lock check` says when an id names several declarations. `no-new-dependency`
    diffs dependency maps in `package.json` plus lockfile hashes. Both
    produce `proven` held or violated.
 2. **Typecheck (proven when clean)** — if `tsconfig.json` exists and a

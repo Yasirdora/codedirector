@@ -1,0 +1,92 @@
+schemaVersion: 1
+id: IL-0030
+status: verified
+utterance: |-
+  Mac gate passed: 271/271, 0 failures, at 38d5ac8. Open IL-0029's PR (and thanks for planning to strip the connector's footer yourself — I'll still check before merging). Once it's up I'll have it merged, same as #4.
+  Then proceed with IL-0030 (F4, Swift overloads).
+goal: "An id's API is every declaration it names: api-unchanged compares all overloads of an id (sorted), so changing, adding or removing any overload is a proven violation that names the change, reordering is not, and single-declaration ids hash exactly as before; TypeScript overload signatures are indexed; npm test is green on the owner's Mac."
+interpretation: |
+  AUDIT FINDING F4, REPRODUCED ON 38d5ac8 (the audit's own script):
+  save(_ v: Int) and save(_ v: String) both index as Store.swift#Store.save;
+  the graph and the baseline keep one declaration per id — the last — so
+  changing the Int overload to Bool reports "signature unchanged", exit 0.
+  The same hole in TypeScript: class method overloads collapse the same way,
+  and a function's overload signatures are not indexed at all.
+
+  BUILT IN A SPIKE FIRST: a scratch clone of 38d5ac8; the run copies the
+  spike's 10 files in.
+
+  CHOSEN: ids stay as they are (Locks name them; sealed Locks cannot be
+  edited without re-approval); what an id stands for becomes all of it.
+  1 apiSignatures (lock/check.ts): every declaration the id names, sorted;
+    the baseline and the verifier compare that. Change / add / remove any
+    overload: proven violation naming it ("save(_ v: Int) → save(_ v:
+    Bool)"; the baseline keeps the texts). Reorder: held. One declaration
+    hashes exactly as before — existing baselines stay valid; end-to-end
+    output unchanged.
+  2 TypeScript: overload signatures (function_signature) are indexed under
+    the function's id; parser version 6.
+  3 lock check warns when an api-unchanged id names several declarations.
+  4 The graph lists an id once by name: `cdir why` printed an overloaded
+    symbol once per declaration.
+  The Swift extractor is not touched (denied below): the fix is the core's.
+
+  MUTATIONS: last declaration only — 5 tests fail; TS overload signatures
+  unindexed — 1; source order instead of sorted — the reorder test; an id
+  listed per declaration — the why test.
+
+  EVIDENCE FROM THE SPIKE: npm test 280/280 on Node 22.22, Node 24.15 and in
+  the Mac-like composite; eval 22/22 (case 22 is the audit's case); the
+  audit's script: before "signature unchanged" exit 0, after the named
+  violation exit 1. THE GATE is the owner's Mac: 280/280. Unchecked here.
+keep:
+  - kind: no-new-dependency
+  - kind: custom
+    text: "npm test is green on the owner's Mac — the gate the owner set (280/280 now: this lock adds nine tests); this container can only stand in for it"
+deny:
+  - package.json
+  - package-lock.json
+  - dist/**
+  - node_modules/**
+  - src/core/swift.ts
+  - src/domain/**
+  - src/domains/**
+  - src/checkpoint/**
+  - src/hook/**
+  - src/mcp/**
+  - src/report/**
+  - src/run/classify.ts
+  - src/run/probe.ts
+  - src/run/supervise.ts
+  - src/run/diagnostics.ts
+  - src/cli.ts
+  - src/cli-main.ts
+  - .gitignore
+change: api-unchanged compares every declaration an id names; TypeScript overload signatures are indexed
+verifyCommand: npm test
+verifyTimeoutMs: 900000
+budget:
+  files:
+    - README.md
+    - docs/ROADMAP.md
+    - eval/cases/22-swift-overload-changed.yaml
+    - src/core/graph.ts
+    - src/core/parser.ts
+    - src/lock/check.ts
+    - src/run/baseline.ts
+    - src/run/run.ts
+    - src/verify/verify.ts
+    - test/overloads.test.ts
+  symbols: []
+  maxFiles: 10
+  maxLines: 500
+accept: []
+assumptions:
+  - text: "Overloads are guarded together under their shared id rather than given ids of their own: new ids would rename symbols existing sealed Locks name, and guarding the set is stricter, not looser."
+    source: system
+    confirmed: false
+  - text: "A baseline captured before this change and verified after it reports an overloaded id as changed (old hash: one declaration; new: all). A fresh run does not. Recorded in the ROADMAP."
+    source: system
+    confirmed: false
+createdAt: 2026-09-26T21:17:30.828Z
+createdBy: Yasirdora

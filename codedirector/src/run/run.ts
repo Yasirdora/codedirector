@@ -22,14 +22,13 @@ import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import { RepoIndex } from "../core/types";
 import { buildIndex } from "../core/builder";
-import { buildGraph } from "../core/graph";
 import { ensureCodedirectorIgnore, indexDir, stableStringify } from "../core/store";
 import { createCheckpoint, Checkpoint } from "../checkpoint";
 import { VibeCheck } from "../lock/types";
 import { defaultDomains, DomainRegistry } from "../domain/registry";
 import { loadLock, saveLock } from "../lock/store";
 import { sealViolation } from "../lock/seal";
-import { signatureHash } from "../lock/check";
+import { apiHash, apiSignatures, describeApiChange } from "../lock/check";
 import { Baseline, baselineFileHash, captureBaseline, saveBaseline } from "./baseline";
 import {
   changedFiles,
@@ -134,19 +133,18 @@ function checkKeepClauses(
   domains: DomainRegistry,
 ): KeepResult[] {
   const results: KeepResult[] = [];
-  const graphAfter = buildGraph(indexAfter, domains);
   for (const clause of lock.keep) {
     switch (clause.kind) {
       case "api-unchanged": {
         for (const id of clause.symbols ?? []) {
           const before = baseline.signatures[id];
-          const sym = graphAfter.symbols.get(id);
+          const after = apiSignatures(indexAfter, id);
           if (before === undefined) {
             results.push({ kind: clause.kind, detail: `${id} — not captured in the baseline (did not resolve pre-run)`, status: "deferred" });
-          } else if (!sym) {
+          } else if (after.length === 0) {
             results.push({ kind: clause.kind, detail: `${id} no longer exists`, status: "violated" });
-          } else if (signatureHash(sym.signature) !== before) {
-            results.push({ kind: clause.kind, detail: `signature changed: ${id}`, status: "violated" });
+          } else if (apiHash(after) !== before) {
+            results.push({ kind: clause.kind, detail: describeApiChange(id, baseline.signatureTexts?.[id], after), status: "violated" });
           } else {
             results.push({ kind: clause.kind, detail: `signature unchanged: ${id}`, status: "ok" });
           }

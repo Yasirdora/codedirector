@@ -10,12 +10,11 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { RepoIndex } from "../core/types";
-import { buildGraph } from "../core/graph";
 import { hashContent } from "../core/builder";
 import { indexDir, stableStringify } from "../core/store";
 import { workTreeStatusPorcelain } from "../checkpoint";
 import { VibeCheck } from "../lock/types";
-import { signatureHash } from "../lock/check";
+import { apiHash, apiSignatures } from "../lock/check";
 import { runShellProbe } from "./probe";
 import { currentHead, listHidden, runIsolated, snapshotWorkTree, WorkTreeSnapshot } from "./tree";
 import { probeDiagnostics } from "./diagnostics";
@@ -53,8 +52,10 @@ export interface Baseline {
   checkpointTag?: string;
   /** HEAD sha at capture — classification diffs against this, not "current HEAD". */
   head?: string;
-  /** api-unchanged KEEP surface: symbol id -> sha256 of its signature. */
+  /** api-unchanged KEEP surface: symbol id -> sha256 of its API (apiHash: every declaration it names). */
   signatures: Record<string, string>;
+  /** The signatures behind each hash, so a change can be named. Absent in older baselines. */
+  signatureTexts?: Record<string, string[]>;
   /** no-new-dependency surface: manifest relpath -> fingerprint. */
   manifests: Record<string, string>;
   /** output-unchanged KEEP surface: command -> captured stdout/stderr hashes. */
@@ -156,12 +157,15 @@ export function captureBaseline(
 ): Baseline {
   const domains = opts.domains ?? defaultDomains();
   const signatures: Record<string, string> = {};
-  const graph = buildGraph(index, domains);
+  const signatureTexts: Record<string, string[]> = {};
   for (const clause of lock.keep) {
     if (clause.kind !== "api-unchanged") continue;
     for (const id of clause.symbols ?? []) {
-      const sym = graph.symbols.get(id);
-      if (sym) signatures[id] = signatureHash(sym.signature);
+      // Every declaration the id names — all overloads, not the last one.
+      const sigs = apiSignatures(index, id);
+      if (sigs.length === 0) continue;
+      signatures[id] = apiHash(sigs);
+      signatureTexts[id] = sigs;
     }
   }
 
@@ -239,6 +243,7 @@ export function captureBaseline(
     checkpointTag,
     head: currentHead(rootDir) ?? undefined,
     signatures,
+    signatureTexts,
     manifests,
     ...(capturedAnyOutput ? { outputs } : {}),
     gitStatus: status,

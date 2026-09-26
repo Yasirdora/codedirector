@@ -21,7 +21,7 @@ import { hasWasmStartupFlags, WASM_STARTUP_FLAGS } from "./wasm-flags";
 type SyntaxNode = any;
 
 /** Bump whenever extraction logic changes; stale entries are reparsed. */
-export const PARSER_VERSION = 5;
+export const PARSER_VERSION = 6;
 
 export type LangKey = "typescript" | "tsx" | "javascript" | "swift";
 
@@ -195,6 +195,11 @@ function kindForNode(node: SyntaxNode): SymbolKind | null {
   switch (node.type) {
     case "function_declaration":
     case "generator_function_declaration":
+    // An overload signature (`function parse(v: string): number;`) is part
+    // of its function's API: it shares the function's id, and api-unchanged
+    // guards every declaration an id names. Unindexed, a changed overload
+    // passed as "signature unchanged" (audit finding F4).
+    case "function_signature":
       return "function";
     case "class_declaration":
     case "abstract_class_declaration":

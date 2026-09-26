@@ -33,11 +33,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { RepoIndex } from "../core/types";
 import { buildIndex } from "../core/builder";
-import { buildGraph } from "../core/graph";
 import { VibeCheck } from "../lock/types";
 import { loadLock } from "../lock/store";
 import { sealViolation } from "../lock/seal";
-import { signatureHash } from "../lock/check";
+import { apiHash, apiSignatures, describeApiChange } from "../lock/check";
 import { matchPath } from "../lock/glob";
 import { Baseline, baselineFileHash, latestBaselinePath, loadBaseline } from "../run/baseline";
 import { runArgvProbe, runShellProbe } from "../run/probe";
@@ -144,10 +143,8 @@ function verifyApiUnchanged(
   baseline: Baseline | null,
   baselineRel: string | undefined,
   indexAfter: RepoIndex,
-  domains: DomainRegistry,
 ): VerificationItem[] {
   const items: VerificationItem[] = [];
-  const graphAfter = buildGraph(indexAfter, domains);
   for (const clause of lock.keep) {
     if (clause.kind !== "api-unchanged") continue;
     for (const id of clause.symbols ?? []) {
@@ -162,13 +159,16 @@ function verifyApiUnchanged(
         continue;
       }
       const artifactRef = `${baselineRel}#signatures[${id}]`;
-      const sym = graphAfter.symbols.get(id);
-      if (!sym) {
+      // Every declaration the id names: overloads are one API (apiSignatures).
+      const after = apiSignatures(indexAfter, id);
+      if (after.length === 0) {
         items.push({ source: "keep-clause", clauseKind: clause.kind, subject, verdict: "violated", evidenceClass: "proven", detail: `${id} no longer exists`, artifactRef });
-      } else if (signatureHash(sym.signature) !== before) {
-        items.push({ source: "keep-clause", clauseKind: clause.kind, subject, verdict: "violated", evidenceClass: "proven", detail: `signature changed: ${id}`, artifactRef });
+      } else if (apiHash(after) !== before) {
+        const detail = describeApiChange(id, baseline.signatureTexts?.[id], after);
+        items.push({ source: "keep-clause", clauseKind: clause.kind, subject, verdict: "violated", evidenceClass: "proven", detail, artifactRef });
       } else {
-        items.push({ source: "keep-clause", clauseKind: clause.kind, subject, verdict: "held", evidenceClass: "proven", detail: `signature unchanged: ${id}`, artifactRef });
+        const overloads = after.length > 1 ? ` (${after.length} overloads)` : "";
+        items.push({ source: "keep-clause", clauseKind: clause.kind, subject, verdict: "held", evidenceClass: "proven", detail: `signature unchanged: ${id}${overloads}`, artifactRef });
       }
     }
   }
@@ -488,7 +488,7 @@ export function verifyWithBaseline(
   const domains = given.domains ?? defaultDomains();
   const tampered = baselineTampered(rootDir, baselineRel, opts);
   let items: VerificationItem[] = [
-    ...verifyApiUnchanged(lock, baseline, baselineRel, indexAfter, domains),
+    ...verifyApiUnchanged(lock, baseline, baselineRel, indexAfter),
     ...verifyNoNewDependency(rootDir, lock, baseline, baselineRel, domains),
     ...verifyDiagnostics(rootDir, opts, tampered ? null : baseline, domains),
     ...verifyTestsPass(rootDir, lock, opts, domains),

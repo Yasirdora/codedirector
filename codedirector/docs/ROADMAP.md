@@ -36,13 +36,52 @@ Swift files (which `node --test` cannot run) exited 0. It is now incomplete.
 
 - ~~A standalone `cdir report` re-runs today's checks but prints the run's
   old list of changed files~~ — landed (IL-0029), below.
-- Swift overloads share one symbol id (`Store.swift#Store.save` for
-  `save(_: Int)` and `save(_: String)`), so changing one overload's
-  parameter type passes `api-unchanged`.
+- ~~Swift overloads share one symbol id, so changing one overload's
+  parameter type passes `api-unchanged`~~ — landed (IL-0030), below.
 - `undo --force` brings back a tracked file deleted before the checkpoint
   (listed under *Untracked directories…* below).
 - The parser loads every grammar before parsing anything: a missing Swift
   grammar stops a TypeScript-only project from being indexed.
+
+### Overloads shared an id, and api-unchanged compared only one of them
+
+**Status: landed (IL-0030).** Audit finding F4, reproduced on 38d5ac8:
+`save(_ v: Int)` and `save(_ v: String)` both indexed as
+`Store.swift#Store.save`. The graph and the baseline keep one declaration per
+id — whichever came last — so changing the Int overload to Bool passed:
+"signature unchanged", exit 0. TypeScript had the same hole twice: class
+method overloads collapsed the same way, and a function's overload
+signatures (`function parse(v: string): number;`) were not indexed at all,
+only its implementation.
+
+Ids stay as they are — Locks name them, and a sealed Lock cannot be edited
+without re-approval. What an id stands for is now all of it: `apiSignatures`
+(`src/lock/check.ts`) collects every declaration the id names, sorted, and
+the baseline and the verifier compare that. Changing, adding or removing any
+overload is a proven violation that says what changed ("public func save(_
+v: Int) → public func save(_ v: Bool)"; the baseline now keeps the signature
+texts for this); reordering overloads is not. A symbol with one declaration
+hashes exactly as before, so existing baselines stay valid — the end-to-end
+output is unchanged. The TypeScript extractor indexes overload signatures
+(parser version 6). `cdir lock check` warns when an api-unchanged id names
+several declarations: they are guarded together. And the graph lists an
+overloaded id once by name — `cdir why` printed a Swift overload once per
+declaration, and would have done the same for every TypeScript function
+with overload signatures.
+
+Guarded by `test/overloads.test.ts` and eval case 22 (the audit's case).
+Keeping only the last declaration again fails 5 of the tests; not indexing
+TypeScript overload signatures fails 1; comparing in source order instead of
+sorted fails the reorder test; listing an id once per declaration fails the
+`why` test.
+
+A baseline captured before this change and verified after it compares an
+overloaded id's old hash (one declaration) with the new (all of them), so
+such a standalone verify reports the id as changed; a fresh run does not.
+
+**Still open, found alongside:** Swift initializers (`init`) and subscripts
+are not indexed, so `api-unchanged` cannot name them; nor can a TypeScript
+`declare function`.
 
 ### A report judged today's checks against the run's old list of files
 

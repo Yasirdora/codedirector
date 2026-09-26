@@ -10,7 +10,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
-import { RepoIndex } from "../core/types";
+import { RepoIndex, SymbolInfo } from "../core/types";
 import { buildGraph } from "../core/graph";
 import { VibeCheck, KeepClause, clauseCheckability } from "./types";
 import { defaultDomains, DomainRegistry } from "../domain/registry";
@@ -82,11 +82,59 @@ export function signatureHash(signature: string): string {
   return createHash("sha256").update(signature, "utf8").digest("hex");
 }
 
+/** Every declaration an id names — more than one for overloads, which share an id. */
+export function declarationsOf(index: RepoIndex, id: string): SymbolInfo[] {
+  const file = id.slice(0, id.lastIndexOf("#"));
+  return (index.files[file]?.symbols ?? []).filter((s) => s.id === id);
+}
+
+/**
+ * The API an id names: the signatures of all its declarations, sorted — so
+ * reordering overloads changes nothing, and changing, adding or removing
+ * any one of them does.
+ *
+ * Audit finding F4: overloads share an id (`Store.swift#Store.save` for
+ * `save(_: Int)` and `save(_: String)`), and the graph and the baseline kept
+ * one declaration per id — whichever came last. Changing the other one's
+ * parameter type passed `api-unchanged`. Ids stay as they are (a Lock names
+ * them); what an id stands for is now all of it.
+ */
+export function apiSignatures(index: RepoIndex, id: string): string[] {
+  return declarationsOf(index, id)
+    .map((s) => s.signature)
+    .sort();
+}
+
+/**
+ * sha256 of an id's API. A symbol with one declaration hashes exactly as its
+ * signature always did, so baselines captured before overloads were counted
+ * stay valid.
+ */
+export function apiHash(signatures: string[]): string {
+  return signatureHash(signatures.join("\n"));
+}
+
+/** What changed in an id's API, for the report: "a → b", or what was added and removed. */
+export function describeApiChange(id: string, before: string[] | undefined, after: string[]): string {
+  const head = `signature changed: ${id}`;
+  if (!before) return head;
+  const removed = before.filter((b) => !after.includes(b));
+  const added = after.filter((a) => !before.includes(a));
+  if (removed.length === 1 && added.length === 1) return `${head} — ${removed[0]} → ${added[0]}`;
+  const parts = [
+    ...(removed.length > 0 ? [`removed: ${removed.join("; ")}`] : []),
+    ...(added.length > 0 ? [`added: ${added.join("; ")}`] : []),
+  ];
+  return parts.length > 0 ? `${head} — ${parts.join(" · ")}` : head;
+}
+
 export interface ClauseCheck {
   clause: KeepClause;
   checkability: "now" | "deferred" | "custom";
   /** Errors found for this clause (empty when the clause is well-formed). */
   errors: string[];
+  /** What the clause will do that its author may not expect (it still validates). */
+  warnings: string[];
   note: string;
 }
 
@@ -100,6 +148,7 @@ export interface LockCheckResult {
 function checkClause(clause: KeepClause, index: RepoIndex | null, domains: DomainRegistry): ClauseCheck {
   const checkability = clauseCheckability(clause);
   const errors: string[] = [];
+  const warnings: string[] = [];
   let note = "";
   switch (clause.kind) {
     case "api-unchanged": {
@@ -110,7 +159,17 @@ function checkClause(clause: KeepClause, index: RepoIndex | null, domains: Domai
       if (index) {
         const graph = buildGraph(index, domains);
         for (const id of clause.symbols) {
-          if (!graph.symbols.has(id)) errors.push(`symbol not in index: ${id}`);
+          if (!graph.symbols.has(id)) {
+            errors.push(`symbol not in index: ${id}`);
+            continue;
+          }
+          const count = declarationsOf(index, id).length;
+          if (count > 1) {
+            warnings.push(
+              `api-unchanged ${id} names ${count} declarations (overloads) — they are guarded together: ` +
+                `changing, adding or removing any of them is a violation`,
+            );
+          }
         }
         note = errors.length === 0 ? "signature-hash checkable now" : "";
       } else {
@@ -152,7 +211,7 @@ function checkClause(clause: KeepClause, index: RepoIndex | null, domains: Domai
       note = "not machine-checkable — human judges";
       break;
   }
-  return { clause, checkability, errors, note };
+  return { clause, checkability, errors, warnings, note };
 }
 
 /**
@@ -261,6 +320,7 @@ export function checkLock(
   let customCount = 0;
   for (const cc of clauses) {
     errors.push(...cc.errors);
+    warnings.push(...cc.warnings);
     if (cc.checkability === "custom") {
       customCount++;
       warnings.push(`custom KEEP clause "${cc.clause.text ?? ""}" is not machine-checkable — human judges`);
