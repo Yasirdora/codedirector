@@ -66,6 +66,12 @@ export interface FileIndex {
   symbols: SymbolInfo[];
   imports: ImportInfo[];
   calls: CallSite[];
+  /**
+   * Why this file could not be parsed — its language's grammar is not
+   * available here. Its facts are unknown, not empty; the next build tries
+   * it again.
+   */
+  unavailable?: string;
 }
 
 export interface RepoIndex {
@@ -96,4 +102,6 @@ export interface BuildStats {
   filesUnchanged: number;
   filesRemoved: number;
   durationMs: number;
+  /** Files not parsed because their language's grammar is not available, grouped by reason. */
+  unavailable: Array<{ reason: string; files: string[] }>;
 }

@@ -41,6 +41,13 @@ export function langForFile(relPath: string): LangKey {
   }
 }
 
+const LANGUAGE_NAMES: Record<LangKey, string> = {
+  typescript: "TypeScript",
+  tsx: "TSX",
+  javascript: "JavaScript",
+  swift: "Swift",
+};
+
 const WASM_PATHS: Record<LangKey, string> = {
   typescript: "tree-sitter-typescript/tree-sitter-typescript.wasm",
   tsx: "tree-sitter-typescript/tree-sitter-tsx.wasm",
@@ -51,6 +58,11 @@ const WASM_PATHS: Record<LangKey, string> = {
   // .wasm the same way the grammars above do.
   swift: "tree-sitter-wasms/out/tree-sitter-swift.wasm",
 };
+
+/** Where the installed package keeps a language's grammar (throws when it is not installed). */
+export function installedGrammar(lang: LangKey): string {
+  return require.resolve(WASM_PATHS[lang]);
+}
 
 let warnedAboutFlags = false;
 
@@ -70,29 +82,64 @@ function checkSwiftStartupFlags(): void {
   );
 }
 
+/**
+ * Grammars load one language at a time, the first time a file of that
+ * language is parsed, and a grammar that cannot load makes that language's
+ * files unparsed — not the whole index.
+ *
+ * Audit finding: every grammar was loaded before anything was parsed, so a
+ * missing Swift grammar (an install without tree-sitter-wasms) stopped a
+ * TypeScript-only project from being indexed: "Cannot find module
+ * 'tree-sitter-wasms/out/tree-sitter-swift.wasm'", exit 1, from every
+ * command that indexes.
+ */
 export class StructuralParser {
   private parsers = new Map<LangKey, Parser>();
-  private initialized = false;
+  private unavailable = new Map<LangKey, string>();
+  private runtimeReady = false;
 
+  /** `grammarPath` locates a language's .wasm (default: the installed package's). */
+  constructor(private readonly grammarPath: (lang: LangKey) => string = installedGrammar) {}
+
+  /**
+   * Load every grammar that can be loaded. For a program that parses files
+   * of any language through `parseFile`; the index builder loads only what
+   * the project needs (`prepare`). Never throws for a missing grammar —
+   * `parseFile` names it for that language's files.
+   */
   async init(): Promise<void> {
-    if (this.initialized) return;
-    await Parser.init();
-    for (const key of Object.keys(WASM_PATHS) as LangKey[]) {
-      const wasmPath = require.resolve(WASM_PATHS[key]);
-      const lang = await Parser.Language.load(wasmPath);
-      const p = new Parser();
-      p.setLanguage(lang);
-      this.parsers.set(key, p);
+    for (const lang of Object.keys(WASM_PATHS) as LangKey[]) await this.prepare(lang);
+  }
+
+  /** Load `lang`'s grammar if it is not loaded yet: null when ready, else why it cannot be. */
+  async prepare(lang: LangKey): Promise<string | null> {
+    if (this.parsers.has(lang)) return null;
+    const known = this.unavailable.get(lang);
+    if (known !== undefined) return known;
+    if (!this.runtimeReady) {
+      await Parser.init();
+      this.runtimeReady = true;
     }
-    this.initialized = true;
+    try {
+      const language = await Parser.Language.load(this.grammarPath(lang));
+      const p = new Parser();
+      p.setLanguage(language);
+      this.parsers.set(lang, p);
+      return null;
+    } catch (e) {
+      const said = (e instanceof Error ? e.message : String(e)).split("\n")[0];
+      const reason = `${LANGUAGE_NAMES[lang]} grammar unavailable (${said})`;
+      this.unavailable.set(lang, reason);
+      return reason;
+    }
   }
 
   /** Parse one file and extract its structural facts. hash computed by caller. */
   parseFile(relPath: string, source: string, hash: string): FileIndex {
     const lang = langForFile(relPath);
-    if (lang === "swift") checkSwiftStartupFlags();
     const parser = this.parsers.get(lang);
-    if (!parser) throw new Error("parser not initialized");
+    if (!parser) throw new Error(this.unavailable.get(lang) ?? `${LANGUAGE_NAMES[lang]} grammar not loaded — call prepare() first`);
+    if (lang === "swift") checkSwiftStartupFlags();
     const tree = parser.parse(source);
     // The one dispatch. Swift's node types share almost no names with
     // TypeScript's, so branching inside the extraction below would mean four

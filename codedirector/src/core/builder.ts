@@ -10,7 +10,7 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { StructuralParser, PARSER_VERSION } from "./parser";
+import { langForFile, StructuralParser, PARSER_VERSION } from "./parser";
 import { emptyIndex, loadIndex, saveIndex } from "./store";
 import { BuildStats, FileIndex, RepoIndex } from "./types";
 import { RepoWalker } from "./walk";
@@ -21,6 +21,8 @@ export interface BuildOptions {
   persist?: boolean;
   /** Domains whose never-source directories the walk skips (default: the built-in ones). */
   domains?: DomainRegistry;
+  /** The parser to use (default: one loading the installed grammars). */
+  parser?: StructuralParser;
 }
 
 export interface BuildResult {
@@ -46,12 +48,10 @@ export async function buildIndex(rootDir: string, opts: BuildOptions = {}): Prom
     files: {},
   };
 
-  const parser = new StructuralParser();
+  const parser = opts.parser ?? new StructuralParser();
   let parsed = 0;
   let unchanged = 0;
-
-  // Lazily init the parser only if something actually needs parsing.
-  let parserReady = false;
+  const unavailable = new Map<string, string[]>();
 
   for (const relPath of files) {
     const abs = path.join(rootDir, relPath);
@@ -63,14 +63,19 @@ export async function buildIndex(rootDir: string, opts: BuildOptions = {}): Prom
     }
     const hash = hashContent(content);
     const prev = previous.files[relPath];
-    if (prev && prev.hash === hash && prev.parserVersion === PARSER_VERSION) {
+    // A file its grammar could not read last time is tried again: the grammar may be here now.
+    if (prev && prev.hash === hash && prev.parserVersion === PARSER_VERSION && prev.unavailable === undefined) {
       next.files[relPath] = prev;
       unchanged++;
       continue;
     }
-    if (!parserReady) {
-      await parser.init();
-      parserReady = true;
+    // Only the grammars this project's files need are loaded; one that cannot
+    // load leaves its language's files unparsed — facts unknown, reason kept.
+    const reason = await parser.prepare(langForFile(relPath));
+    if (reason !== null) {
+      next.files[relPath] = { hash, parserVersion: PARSER_VERSION, symbols: [], imports: [], calls: [], unavailable: reason };
+      unavailable.set(reason, [...(unavailable.get(reason) ?? []), relPath]);
+      continue;
     }
     let fileIndex: FileIndex;
     try {
@@ -96,6 +101,7 @@ export async function buildIndex(rootDir: string, opts: BuildOptions = {}): Prom
       filesUnchanged: unchanged,
       filesRemoved: removed,
       durationMs: Date.now() - started,
+      unavailable: [...unavailable].map(([reason, files]) => ({ reason, files })),
     },
   };
 }

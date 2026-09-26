@@ -40,8 +40,44 @@ Swift files (which `node --test` cannot run) exited 0. It is now incomplete.
   parameter type passes `api-unchanged`~~ — landed (IL-0030), below.
 - ~~`undo --force` brings back a tracked file deleted before the
   checkpoint~~ — landed (IL-0031), below.
-- The parser loads every grammar before parsing anything: a missing Swift
-  grammar stops a TypeScript-only project from being indexed.
+- ~~The parser loads every grammar before parsing anything: a missing Swift
+  grammar stops a TypeScript-only project from being indexed~~ — landed
+  (IL-0032), below. **Every finding of the audit has now landed**; its
+  reproduction script, run on IL-0032's build, shows each one fixed.
+
+### A missing grammar stopped the whole index
+
+**Status: landed (IL-0032).** The audit's last finding, reproduced on
+fc4a2db: in an install without `tree-sitter-wasms`, `cdir index` on a
+TypeScript-only project failed — "Cannot find module
+'tree-sitter-wasms/out/tree-sitter-swift.wasm'", exit 1 — and so did every
+command that indexes (`lock new`, `run`, `verify`). The parser loaded all
+four grammars before parsing anything.
+
+- Grammars load one language at a time, the first time a file of that
+  language is parsed (`StructuralParser.prepare`). A TypeScript project never
+  loads the Swift grammar. `init()` still loads everything it can, for
+  programs that embed the parser, but never throws for a missing grammar.
+- A grammar that cannot load leaves its language's files unparsed: an index
+  entry with no facts and the reason (`unavailable`), retried by the next
+  build — installing the grammar needs no cache clearing. `cdir index` and
+  every command that indexes name them on stderr: "cdir: Swift grammar
+  unavailable (…) — 1 file(s) not indexed (App/Model.swift); checks that
+  need them report Unchecked".
+- Checks read that as unknown, never as absent: `api-unchanged` on a symbol
+  in such a file is Unchecked with the reason (a required check, so the run
+  is incomplete) — it used to be able to read "no longer exists", a false
+  violation. `lock check` says why the symbol is not in the index; the
+  report says the file's structure and test coverage are unknown instead of
+  "no test file references its symbols".
+
+Guarded by `test/grammar.test.ts`, one test through a real broken install
+(this package, built, with `tree-sitter-wasms` removed from its
+node_modules). Loading every grammar up front fails the TypeScript-only
+test; caching an unparsed file fails the retry test; reading an unparsed
+file as "no longer exists" fails the api-unchanged test; the report
+treating it as parsed fails the findings test. Cold `cdir index` of a
+small TypeScript project: 192 → 183 ms — the point is robustness, not speed.
 
 ### Undo brought back files deleted before the checkpoint, and its preview listed the wrong files
 

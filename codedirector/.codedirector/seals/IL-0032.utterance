@@ -1,0 +1,2 @@
+Mac gate passed: 288/288, 0 failures, at fc4a2db. Open IL-0031's PR — once it's up I'll have it merged.
+Then proceed with IL-0032 (lazy grammar loading), the last audit item. Your design is right: a missing grammar should mark that language's files unchecked, not stop the whole index — a TypeScript-only project should never care whether the Swift grammar is present.

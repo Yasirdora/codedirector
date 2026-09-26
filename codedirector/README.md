@@ -191,6 +191,13 @@ reparsed. Honored skips: `.git`, `node_modules`, `dist`, `.codedirector`,
 plus root `.gitignore` / `.ignore` patterns (nested `.gitignore` files are
 not yet honored).
 
+Grammars load one language at a time, when the project has a file in it: a
+TypeScript project never loads the Swift grammar. A grammar that cannot load
+(an install without `tree-sitter-wasms`, say) leaves only its language's
+files unparsed — named on stderr with the reason, retried on the next build,
+and any check that needs them reports Unchecked with that reason, never a
+false violation.
+
 cdir's ignore rules for its working state (index, baselines, runs,
 checkpoints) live in `.codedirector/.gitignore`; locks stay commitable. The
 project's own `.gitignore` is never edited. Older versions added a

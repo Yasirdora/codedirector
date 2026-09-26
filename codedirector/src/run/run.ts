@@ -28,7 +28,7 @@ import { VibeCheck } from "../lock/types";
 import { defaultDomains, DomainRegistry } from "../domain/registry";
 import { loadLock, saveLock } from "../lock/store";
 import { sealViolation } from "../lock/seal";
-import { apiHash, apiSignatures, describeApiChange } from "../lock/check";
+import { apiHash, apiSignatures, describeApiChange, unindexedReason } from "../lock/check";
 import { Baseline, baselineFileHash, captureBaseline, saveBaseline } from "./baseline";
 import {
   changedFiles,
@@ -139,7 +139,10 @@ function checkKeepClauses(
         for (const id of clause.symbols ?? []) {
           const before = baseline.signatures[id];
           const after = apiSignatures(indexAfter, id);
-          if (before === undefined) {
+          const unindexed = unindexedReason(indexAfter, id);
+          if (unindexed) {
+            results.push({ kind: clause.kind, detail: `${id} — ${unindexed}`, status: "deferred" });
+          } else if (before === undefined) {
             results.push({ kind: clause.kind, detail: `${id} — not captured in the baseline (did not resolve pre-run)`, status: "deferred" });
           } else if (after.length === 0) {
             results.push({ kind: clause.kind, detail: `${id} no longer exists`, status: "violated" });

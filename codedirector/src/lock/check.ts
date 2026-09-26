@@ -89,6 +89,17 @@ export function declarationsOf(index: RepoIndex, id: string): SymbolInfo[] {
 }
 
 /**
+ * Why the file an id lives in was not indexed — its language's grammar is
+ * not available here — or undefined. Its symbols are unknown, not absent:
+ * a check on them is Unchecked, never "no longer exists".
+ */
+export function unindexedReason(index: RepoIndex, id: string): string | undefined {
+  const file = id.slice(0, id.lastIndexOf("#"));
+  const reason = index.files[file]?.unavailable;
+  return reason === undefined ? undefined : `${file} was not indexed: ${reason}`;
+}
+
+/**
  * The API an id names: the signatures of all its declarations, sorted — so
  * reordering overloads changes nothing, and changing, adding or removing
  * any one of them does.
@@ -160,7 +171,8 @@ function checkClause(clause: KeepClause, index: RepoIndex | null, domains: Domai
         const graph = buildGraph(index, domains);
         for (const id of clause.symbols) {
           if (!graph.symbols.has(id)) {
-            errors.push(`symbol not in index: ${id}`);
+            const why = unindexedReason(index, id);
+            errors.push(`symbol not in index: ${id}${why ? ` — ${why}` : ""}`);
             continue;
           }
           const count = declarationsOf(index, id).length;

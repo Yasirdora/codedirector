@@ -1,0 +1,90 @@
+schemaVersion: 1
+id: IL-0032
+status: verified
+utterance: |-
+  Mac gate passed: 288/288, 0 failures, at fc4a2db. Open IL-0031's PR — once it's up I'll have it merged.
+  Then proceed with IL-0032 (lazy grammar loading), the last audit item. Your design is right: a missing grammar should mark that language's files unchecked, not stop the whole index — a TypeScript-only project should never care whether the Swift grammar is present.
+goal: Grammars load per language when a file needs them; a grammar that cannot load leaves only its language's files unparsed — named with the reason, retried next build — and checks that need them report Unchecked, never a false violation; a TypeScript-only project never loads the Swift grammar; npm test is green on the owner's Mac.
+interpretation: |
+  THE AUDIT'S LAST FINDING, REPRODUCED ON fc4a2db: in an install without
+  tree-sitter-wasms, `cdir index` on a TypeScript-only project fails —
+  "Cannot find module 'tree-sitter-wasms/out/tree-sitter-swift.wasm'", exit
+  1 — as does every command that indexes. The parser loaded all four
+  grammars before parsing anything.
+
+  BUILT IN A SPIKE FIRST: a scratch clone of fc4a2db; the run copies the
+  spike's 11 files in.
+
+  1 Parser: grammars load per language on first use (prepare); a failure is
+    remembered for that language only. init() still loads everything it
+    can, for embedders, but never throws for a missing grammar.
+  2 Builder: a file whose grammar cannot load gets an entry with no facts
+    and the reason (unavailable), retried next build; stats name them; the
+    CLI says so on stderr wherever it indexes.
+  3 Unknown, not absent: api-unchanged on such a file is Unchecked with the
+    reason (never "no longer exists"); lock check says why a symbol is
+    missing; the report does not invent test coverage for it.
+
+  MUTATIONS: every grammar up front — the TypeScript-only test fails;
+  unparsed files cached — the retry test; unparsed read as "no longer
+  exists" — the api-unchanged test; the report treating it as parsed — the
+  findings test.
+
+  EVIDENCE FROM THE SPIKE: npm test 295/295 on Node 22.22, Node 24.15 and in
+  the Mac-like composite; eval 22/22; end-to-end output identical to
+  IL-0031; the audit's full script on this build shows every finding fixed;
+  a real broken install indexes a TypeScript project, exit 0. THE GATE is
+  the owner's Mac: 295/295. Unchecked here.
+keep:
+  - kind: no-new-dependency
+  - kind: custom
+    text: "npm test is green on the owner's Mac — the gate the owner set (295/295 now: this lock adds seven tests); this container can only stand in for it"
+deny:
+  - package.json
+  - package-lock.json
+  - dist/**
+  - node_modules/**
+  - src/core/swift.ts
+  - src/core/graph.ts
+  - src/core/wasm-flags.ts
+  - src/domain/**
+  - src/domains/**
+  - src/checkpoint/**
+  - src/hook/**
+  - src/mcp/**
+  - src/run/baseline.ts
+  - src/run/classify.ts
+  - src/run/probe.ts
+  - src/run/supervise.ts
+  - src/run/diagnostics.ts
+  - src/cli.ts
+  - .gitignore
+change: grammars load per language on first use; a missing grammar leaves only its language unparsed, and checks on it report Unchecked
+verifyCommand: npm test
+verifyTimeoutMs: 900000
+budget:
+  files:
+    - README.md
+    - docs/ROADMAP.md
+    - src/cli-main.ts
+    - src/core/builder.ts
+    - src/core/parser.ts
+    - src/core/types.ts
+    - src/lock/check.ts
+    - src/report/report.ts
+    - src/run/run.ts
+    - src/verify/verify.ts
+    - test/grammar.test.ts
+  symbols: []
+  maxFiles: 11
+  maxLines: 450
+accept: []
+assumptions:
+  - text: A file its grammar could not read keeps an index entry with no facts and the reason, and is retried on every build until the grammar is there; an unchanged file whose facts were read before keeps them.
+    source: system
+    confirmed: false
+  - text: "`cdir index` exits 0 when some languages could not be parsed: the index of the rest is sound, and the unread files are named on stderr and reported Unchecked by any check that needs them."
+    source: system
+    confirmed: false
+createdAt: 2026-09-26T22:14:12.695Z
+createdBy: Yasirdora

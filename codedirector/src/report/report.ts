@@ -126,9 +126,16 @@ function computeFindings(index: RepoIndex, changed: ClassifiedChange[], domains:
     Object.keys(index.files).filter((f) => isTestFile(f, domains)).map(languageOf),
   );
   const unmapped = new Map<string, string[]>();
+  const unread = new Map<string, string[]>();
   for (const c of changed) {
     if (c.class !== "in-budget" || isTestFile(c.path, domains)) continue;
     if (!index.files[c.path]) continue; // not source cdir reads: nothing to reference
+    const reason = index.files[c.path].unavailable;
+    if (reason !== undefined) {
+      // Its symbols are unknown: "no test references them" would be invented.
+      unread.set(reason, [...(unread.get(reason) ?? []), c.path]);
+      continue;
+    }
     const language = languageOf(c.path);
     if (!testedLanguages.has(language)) {
       unmapped.set(language, [...(unmapped.get(language) ?? []), c.path]);
@@ -145,6 +152,13 @@ function computeFindings(index: RepoIndex, changed: ClassifiedChange[], domains:
         evidenceClass: "asserted",
       });
     }
+  }
+  for (const [reason, paths] of [...unread.entries()].sort()) {
+    const named = paths.length <= 3 ? ` (${paths.join(", ")})` : "";
+    findings.push({
+      text: `${paths.length} file(s) changed in-budget${named} were not indexed — ${reason}; their structure and test coverage are unknown`,
+      evidenceClass: "asserted",
+    });
   }
   for (const [language, paths] of [...unmapped.entries()].sort()) {
     const named = paths.length <= 3 ? ` (${paths.join(", ")})` : "";

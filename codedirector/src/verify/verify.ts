@@ -36,7 +36,7 @@ import { buildIndex } from "../core/builder";
 import { VibeCheck } from "../lock/types";
 import { loadLock } from "../lock/store";
 import { sealViolation } from "../lock/seal";
-import { apiHash, apiSignatures, describeApiChange } from "../lock/check";
+import { apiHash, apiSignatures, describeApiChange, unindexedReason } from "../lock/check";
 import { matchPath } from "../lock/glob";
 import { Baseline, baselineFileHash, latestBaselinePath, loadBaseline } from "../run/baseline";
 import { runArgvProbe, runShellProbe } from "../run/probe";
@@ -154,8 +154,14 @@ function verifyApiUnchanged(
         continue;
       }
       const before = baseline.signatures[id];
+      const unindexed = unindexedReason(indexAfter, id);
       if (before === undefined) {
-        items.push(uncheckedItem("keep-clause", subject, "symbol not captured in baseline (did not resolve pre-change)", clause.kind));
+        items.push(uncheckedItem("keep-clause", subject, unindexed ?? "symbol not captured in baseline (did not resolve pre-change)", clause.kind));
+        continue;
+      }
+      if (unindexed) {
+        // Unknown, not gone: the file could not be read after the change.
+        items.push(uncheckedItem("keep-clause", subject, unindexed, clause.kind));
         continue;
       }
       const artifactRef = `${baselineRel}#signatures[${id}]`;

@@ -27,7 +27,7 @@ import { buildIndex } from "./core/builder";
 import { buildRepoMap, formatRepoMap } from "./core/map";
 import { loadIndex } from "./core/store";
 import { blastRadius, formatBlastRadius } from "./core/why";
-import { RepoIndex } from "./core/types";
+import { BuildStats, RepoIndex } from "./core/types";
 import { stableStringify } from "./core/store";
 import { draftLock, parseKeepClause, LOW_CONFIDENCE_FLAG, type DraftOptions } from "./lock/draft";
 import { getProfile, mergeDraftOptions, PROFILE_NAMES } from "./lock/profiles";
@@ -223,12 +223,23 @@ function intFlag(flags: Map<string, Array<string | true>>, name: string, fallbac
   return n;
 }
 
+/** Says which files were not indexed and why: a language whose grammar is not available here. */
+function warnUnavailable(stats: BuildStats): void {
+  for (const { reason, files } of stats.unavailable) {
+    const named = files.slice(0, 3).join(", ") + (files.length > 3 ? ` and ${files.length - 3} more` : "");
+    process.stderr.write(
+      `cdir: ${reason} — ${files.length} file(s) not indexed (${named}); checks that need them report Unchecked\n`,
+    );
+  }
+}
+
 /** Load the index, building it on demand if missing. */
 async function indexOnDemand(root: string): Promise<RepoIndex> {
   const existing = loadIndex(root);
   if (existing) {
     // Refresh incrementally so output reflects the working tree.
-    const { index } = await buildIndex(root);
+    const { index, stats } = await buildIndex(root);
+    warnUnavailable(stats);
     return index;
   }
   process.stderr.write("cdir: no index found — building (this happens once)\n");
@@ -236,6 +247,7 @@ async function indexOnDemand(root: string): Promise<RepoIndex> {
   process.stderr.write(
     `cdir: indexed ${stats.filesTotal} files (${stats.filesParsed} parsed) in ${stats.durationMs}ms\n`,
   );
+  warnUnavailable(stats);
   return index;
 }
 
@@ -389,6 +401,7 @@ async function main(): Promise<number> {
           `${stats.filesUnchanged} unchanged, ${stats.filesRemoved} removed ` +
           `(${stats.durationMs}ms)\nIndex written to .codedirector/index.json\n`,
       );
+      warnUnavailable(stats);
       return 0;
     }
 
