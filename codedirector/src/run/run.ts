@@ -36,6 +36,7 @@ import {
   changedLineCount,
   ClassifiedChange,
   classifyChanges,
+  fingerprint,
   scopeViolations,
 } from "./classify";
 import { verifyWithBaseline, VerifyOptions } from "../verify/verify";
@@ -77,6 +78,13 @@ export interface RunRecord {
   /** sha256 of the baseline file at capture time — tamper detection. */
   baselineSha256?: string;
   changed: ClassifiedChange[];
+  /**
+   * Each changed file's bytes as the run left them (sha256, or "absent" for
+   * a file it deleted): what a later report compares the tree with to name
+   * the files changed after the run. Absent in records written before it
+   * existed.
+   */
+  changedHashes?: Record<string, string>;
   budget: BudgetStats;
   keepResults: KeepResult[];
   violations: string[];
@@ -332,6 +340,7 @@ export async function runWithLock(
     baselinePath: path.relative(rootDir, baselinePath),
     baselineSha256,
     changed,
+    changedHashes: Object.fromEntries(changed.map((c) => [c.path, fingerprint(rootDir, c.path)])),
     budget,
     keepResults,
     violations,

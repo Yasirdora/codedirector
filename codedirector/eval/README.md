@@ -21,6 +21,7 @@ lock:                       # Vibe Check fragment; the harness fills in
   budget:
     files: ["src/math.js"]
 command: node -e '...'      # the change, run via `cdir run IL-0001 -- <command>`
+afterRun: echo x >> f.txt   # optional: a change made after the run, before the report
 expect:
   exitCode: 1               # process exit code of `cdir run`
   status: failed            # lock status afterwards (verified/incomplete/failed)
@@ -31,6 +32,8 @@ expect:
                             # clauseKind contains `match` must carry exactly
                             # this evidence class + verdict
   uncheckedMin: 0           # minimum size of the Unchecked bucket
+  reportVerdict: failed     # optional: the report's verdict (it judges the tree as it is)
+  drift: ["f.txt"]          # optional: exactly the files named as changed after the run
 ```
 
 Each case prints how long its `cdir run` took, and the total is printed at

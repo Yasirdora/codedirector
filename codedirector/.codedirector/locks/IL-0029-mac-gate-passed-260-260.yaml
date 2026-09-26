@@ -1,0 +1,110 @@
+schemaVersion: 1
+id: IL-0029
+status: verified
+utterance: |-
+  Mac gate passed: 260/260, 0 failures, at 6784394. That was the one missing check — IL-0028 is good.
+  Yes, open a PR for IL-0028 (main already has the PR #3 merge, bb4b0cd, so the PR should be a clean one-commit diff). Once it's up I'll have it merged.
+  Then proceed with IL-0029 (F5: cdir report should say it describes a past run, or recheck scope against current files and flag drift).
+  Two notes, no action needed:
+
+  1. Your deliberate behavior change (a tests-pass pattern matching Swift files now exits 3 "incomplete" instead of 0) is the right call. We'll watch the eDraft repo's existing locks when they pick up this version, in case any lock's tests-pass clause matches Swift test files and starts reporting incomplete.
+  2. Acknowledged the new ROADMAP finding (stopping cdir mid-check leaves the check running until its own timeout). Agreed it belongs with the long-checks-block-MCP item, not this lock.
+goal: A standalone report or verify judges the tree as it is now — checks and scope alike — names every file changed after the run, and never says verified when it cannot see the changed files; reading a report leaves the lock's status alone; npm test is green on the owner's Mac.
+interpretation: |
+  AUDIT FINDING F5, REPRODUCED ON 6784394: a clean run edited allowed.txt;
+  protected.txt, denied by the Lock, was then changed by hand. `cdir report`
+  re-ran today's checks but judged scope on the run's stored list: "Done —
+  verified. Only allowed.txt changed, within the agreed scope." protected.txt
+  was never mentioned.
+
+  CHOSEN: recheck scope against the current files and flag drift — the
+  owner's second option. A standalone report or verify already re-runs every
+  check on the tree as it is now and re-judges against the Lock as it is now
+  (the rejudge that lets a raised ceiling clear a refusal); only the scope
+  half still read the stored list. Now it does not:
+
+  1 judgeTreeNow (run/classify.ts): the changed files are found again
+    against the run's baseline with the run's own classifier; the ceilings
+    are measured on them. Every file changed after the run — new, edited
+    again, or the run's change undone — is named in the report's `drift`
+    and judged like any other. --allow-expand still covers only the run's
+    own changes.
+  2 The run records each changed file's hash as it left it (changedHashes),
+    so a further edit to one of its own files is seen. Older records still
+    show new paths.
+  3 No trustworthy baseline: the run's own list is shown and the report is
+    incomplete (failed when the baseline's recorded hash no longer matches —
+    tampering, as before).
+  4 `cdir report` no longer sets the lock's status (verify and run do; the
+    MCP report tool never did): an old Lock's report read after later work
+    must not turn it failed.
+
+  ADDED, SAME FAMILY — say so: with no run behind it (the direct-edit path:
+  checkpoint, edit, verify), verify judged no scope at all. Reproduced:
+  "Done — verified", exit 0, over an edit to a denied file. Without a
+  baseline the changed files cannot be found: incomplete, naming why. The
+  skill now steers work through `cdir run`.
+
+  MUTATIONS: the stored list again — 7 drift tests fail; no hash
+  comparison — the further-edit test fails; report setting status — its
+  test fails; no-run scope judged verified — 2 tests fail.
+
+  EVIDENCE FROM THE SPIKE: npm test 271/271 on Node 22.22, Node 24.15 and in
+  the Mac-like composite; eval 21/21 (case 21 is the audit's case, via the
+  new afterRun); end-to-end output against IL-0028 differs only by the new
+  "drift": [] field in JSON reports. THE GATE is the owner's Mac: 271/271.
+keep:
+  - kind: no-new-dependency
+  - kind: custom
+    text: "npm test is green on the owner's Mac — the gate the owner set (271/271 now: this lock adds eleven tests); this container can only stand in for it"
+deny:
+  - package.json
+  - package-lock.json
+  - dist/**
+  - node_modules/**
+  - src/core/**
+  - src/domain/**
+  - src/domains/**
+  - src/checkpoint/**
+  - src/hook/**
+  - src/lock/**
+  - src/mcp/**
+  - src/verify/**
+  - src/run/baseline.ts
+  - src/run/probe.ts
+  - src/run/supervise.ts
+  - src/run/diagnostics.ts
+  - src/cli.ts
+  - .gitignore
+change: a standalone report or verify judges scope on the tree as it is now and names every file changed after the run
+verifyCommand: npm test
+verifyTimeoutMs: 900000
+budget:
+  files:
+    - README.md
+    - docs/ROADMAP.md
+    - eval/README.md
+    - eval/cases/21-report-names-drift.yaml
+    - eval/run.ts
+    - skills/codedirector/SKILL.md
+    - src/cli-main.ts
+    - src/report/format.ts
+    - src/report/report.ts
+    - src/run/classify.ts
+    - src/run/run.ts
+    - test/drift.test.ts
+    - test/incomplete.test.ts
+    - test/report.test.ts
+  symbols: []
+  maxFiles: 14
+  maxLines: 700
+accept: []
+assumptions:
+  - text: "Of the owner's two options, recheck-and-flag, not a historical report: report and verify already mean 'judge the tree as it is now' (checks re-run, rejudge against the current Lock); only the scope half read the stored list."
+    source: system
+    confirmed: false
+  - text: Drift is judged like any other change — a denied file changed after the run fails the report — and named as not the run's command's doing; the lock's status is set only by run and verify.
+    source: system
+    confirmed: false
+createdAt: 2026-09-26T20:43:35.946Z
+createdBy: Yasirdora
