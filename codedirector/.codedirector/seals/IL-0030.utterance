@@ -1,0 +1,2 @@
+Mac gate passed: 271/271, 0 failures, at 38d5ac8. Open IL-0029's PR (and thanks for planning to strip the connector's footer yourself — I'll still check before merging). Once it's up I'll have it merged, same as #4.
+Then proceed with IL-0030 (F4, Swift overloads).

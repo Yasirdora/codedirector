@@ -64,7 +64,8 @@ export function buildGraph(index: RepoIndex, domains: DomainRegistry = defaultDo
     for (const sym of index.files[file].symbols) {
       symbols.set(sym.id, sym);
       const list = byName.get(sym.name) ?? [];
-      list.push(sym.id);
+      // Overloads share an id: one entry per id, or `why` lists it twice.
+      if (!list.includes(sym.id)) list.push(sym.id);
       byName.set(sym.name, list);
       const fl = filesOf.get(file) ?? [];
       fl.push(sym);

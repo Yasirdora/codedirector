@@ -1,0 +1,34 @@
+name: swift-overload-changed
+# The audit's reproduction (F4): save(_: Int) and save(_: String) share the
+# id Store.swift#Store.save. Only the last declaration was kept, so changing
+# the Int overload to Bool passed as "signature unchanged". An id's API is
+# every declaration it names: the change is a proven violation, named.
+files:
+  Package.swift: |
+    // swift-tools-version:5.9
+    import PackageDescription
+    let package = Package(name: "App", targets: [.target(name: "App")])
+  Sources/App/Store.swift: |
+    public struct Store {
+        public init() {}
+        public func save(_ v: Int) { print(v) }
+        public func save(_ v: String) { print(v) }
+    }
+lock:
+  utterance: tidy the store
+  goal: same API
+  change: Store internals only
+  keep:
+    - kind: api-unchanged
+      symbols: ["Sources/App/Store.swift#Store.save"]
+  budget:
+    files: ["Sources/App/Store.swift"]
+command: >-
+  node -e 'const f=require("fs");const p="Sources/App/Store.swift";f.writeFileSync(p,f.readFileSync(p,"utf8").replace("save(_ v: Int)","save(_ v: Bool)"))'
+expect:
+  exitCode: 1
+  status: failed
+  violationsContaining:
+    - "KEEP api-unchanged: signature changed: Sources/App/Store.swift#Store.save — public func save(_ v: Int) → public func save(_ v: Bool)"
+  items:
+    - { match: api-unchanged, class: proven, verdict: violated }
