@@ -1,0 +1,92 @@
+schemaVersion: 1
+id: IL-0028
+status: verified
+utterance: proceed with highest level of professionalism
+goal: "A check the Lock requires that did not finish is never reported verified: the run, verify and report say incomplete (exit 3, lock status incomplete) and name the check; a violation still wins (failed, exit 1); custom clauses and the ladder's own typecheck stay named but do not block; npm test is green on the owner's Mac."
+interpretation: |
+  AUDIT FINDING F2, REPRODUCED ON MAIN (bb4b0cd): a lock whose verifyCommand
+  was stopped by its timeout ended "Done — verified. … verifyCommand timed
+  out after 300ms", exit 0, lock status verified. Only a violation could
+  block the verdict; a check that never finished is not a violation.
+
+  BUILT IN A SPIKE FIRST: a scratch clone of bb4b0cd; the run copies the
+  spike's 18 files in.
+
+  THE RULE, in one place (isRequiredCheck, src/verify/types.ts): required =
+  every KEEP clause except custom, and the verifyCommand. Three outcomes:
+  failed (a violation, or the command failed; exit 1) beats incomplete
+  (nothing violated, a required check did not finish; exit 3, lock status
+  incomplete) beats verified (exit 0). run, verify, report and run_locked
+  (MCP error) all say it; the summary leads "Not verified: <check> did not
+  finish — <reason>". Custom clauses and the ladder's own typecheck stay in
+  the Unchecked bucket without blocking. With verification switched off,
+  required clauses and the verifyCommand count as not run.
+
+  ONE BEHAVIOUR CHANGE BEYOND THE AUDIT CASE, pinned by an existing test: a
+  tests-pass glob reaching Swift files (node --test cannot run them) exited
+  0; it is now incomplete, exit 3 — the lock asked for tests nobody ran.
+
+  MUTATIONS: without the rule, 10 tests fail (incl. the audit's CLI
+  reproduction and run_locked); widened to custom clauses and the typecheck,
+  13 fail.
+
+  EVIDENCE FROM THE SPIKE: npm test 260/260 on Node 22.22, on Node 24.15,
+  and in the Mac-like composite; eval 20/20 (case 20 is the audit's case);
+  end-to-end output against main differs only by the new "incomplete": []
+  field in JSON reports. THE GATE is the owner's Mac: 260/260. Unchecked here.
+keep:
+  - kind: no-new-dependency
+  - kind: custom
+    text: "npm test is green on the owner's Mac — the gate the owner set (260/260 now: this lock adds ten tests); this container can only stand in for it"
+deny:
+  - package.json
+  - package-lock.json
+  - dist/**
+  - node_modules/**
+  - src/core/**
+  - src/domain/**
+  - src/domains/**
+  - src/checkpoint/**
+  - src/hook/**
+  - src/run/probe.ts
+  - src/run/supervise.ts
+  - src/run/diagnostics.ts
+  - src/run/classify.ts
+  - src/cli.ts
+  - .gitignore
+change: a required check that did not finish makes the run incomplete (exit 3), never verified
+verifyCommand: npm test
+verifyTimeoutMs: 900000
+budget:
+  files:
+    - README.md
+    - docs/ROADMAP.md
+    - eval/README.md
+    - eval/cases/20-verify-timeout-incomplete.yaml
+    - eval/run.ts
+    - src/cli-main.ts
+    - src/index.ts
+    - src/lock/seal.ts
+    - src/lock/show.ts
+    - src/lock/types.ts
+    - src/mcp/server.ts
+    - src/report/format.ts
+    - src/report/report.ts
+    - src/run/run.ts
+    - src/verify/types.ts
+    - src/verify/verify.ts
+    - test/incomplete.test.ts
+    - test/verify.test.ts
+  symbols: []
+  maxFiles: 18
+  maxLines: 700
+accept: []
+assumptions:
+  - text: "The typecheck the ladder adds on its own is not required: the Lock did not ask for it, and requiring it would make every run on a machine without a compiler incomplete. A Lock that needs it guaranteed puts it in its verifyCommand."
+    source: system
+    confirmed: false
+  - text: Exit 3 for incomplete (2 stays the usage error); ChangeReport keeps schemaVersion 1 — the new verdict value and the incomplete field are additive.
+    source: system
+    confirmed: false
+createdAt: 2026-09-26T19:54:06.429Z
+createdBy: Yasirdora

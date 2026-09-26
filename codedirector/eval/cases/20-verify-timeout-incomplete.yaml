@@ -1,0 +1,28 @@
+name: verify-timeout-incomplete
+# The audit's reproduction: the change is in scope and nothing is violated,
+# but the lock's verifyCommand is stopped by its timeout. Nothing proved the
+# change, so the run is incomplete (exit 3) — it used to say "Done —
+# verified", exit 0.
+files:
+  package.json: |
+    {"name":"eval-fixture","type":"module","dependencies":{}}
+  src/math.js: |
+    export function add(a, b) { return a + b; }
+lock:
+  utterance: make math faster
+  goal: same behavior, faster
+  change: math internals only
+  verifyCommand: node -e 'setTimeout(()=>{},5000)'
+  verifyTimeoutMs: 300
+  keep:
+    - kind: no-new-dependency
+  budget:
+    files: ["src/math.js"]
+command: node -e 'require("fs").appendFileSync("src/math.js","// faster\n")'
+expect:
+  exitCode: 3
+  status: incomplete
+  uncheckedMin: 1
+  items:
+    - { match: verifyCommand, class: unchecked, verdict: unchecked }
+    - { match: no-new-dependency, class: proven, verdict: held }

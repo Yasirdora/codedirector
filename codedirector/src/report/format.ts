@@ -5,7 +5,7 @@
  */
 
 import { stableStringify } from "../core/store";
-import { VerificationItem } from "../verify/types";
+import { isRequiredCheck, VerificationItem } from "../verify/types";
 import { ChangeReport } from "./report";
 
 const MARK: Record<VerificationItem["verdict"], string> = { held: "✓", violated: "✗", unchecked: "?" };
@@ -28,20 +28,34 @@ function plural(n: number, one: string, many?: string): string {
  * One-glance summary, generated from the same data the detail below renders
  * (blueprint's depth principle applied to the product itself). Register:
  * competent colleague. Hard rule: the word "verified" appears only when the
- * report's verdict is verified — which requires zero violations and a
- * successful command.
+ * report's verdict is verified — which requires zero violations, a
+ * successful command, and every required check run to the end.
  */
 export function summarizeReport(report: ChangeReport): string {
   const sentences: string[] = [];
   const held = report.items.filter((i) => i.verdict === "held");
   const violatedItems = report.items.filter((i) => i.verdict === "violated");
   const unchecked = report.items.filter((i) => i.verdict === "unchecked");
+  // A required check that did not finish is the outcome, said first; the
+  // rest of the bucket is what a human judges.
+  const notRun = unchecked.filter(isRequiredCheck);
+  const judged = unchecked.filter((i) => !isRequiredCheck(i));
   const outOfScope = report.changed.filter((c) => c.class !== "in-budget");
   const undoHint = "Nothing was reverted — run `cdir undo` to restore.";
 
   // 1. Outcome first.
   if (report.verdict === "verified") {
     sentences.push("Done — verified.");
+  } else if (report.verdict === "incomplete") {
+    const first = notRun[0];
+    const more = notRun.length > 1 ? ` (${notRun.length - 1} more below)` : "";
+    // More time is the remedy only for what ran out of it.
+    const moreTime = notRun.some((i) => /timed out/.test(i.reason ?? "")) ? " (--test-timeout gives it more time)" : "";
+    const what = first ? `${first.subject} did not finish — ${first.reason ?? first.detail}` : report.incomplete[0];
+    sentences.push(
+      `Not verified: ${what}${more}. Nothing broke that was checked, but this is unproven: ` +
+        `check again with \`cdir verify ${report.lockId}\`${moreTime}, or run \`cdir undo\` to restore.`,
+    );
   } else if (outOfScope.length > 0) {
     const first = outOfScope[0];
     const what =
@@ -81,14 +95,14 @@ export function summarizeReport(report: ChangeReport): string {
   }
 
   // 4. What still needs a human.
-  if (unchecked.length > 0) {
-    const named = unchecked
+  if (judged.length > 0) {
+    const named = judged
       .slice(0, 2)
       .map((i) => i.reason ?? i.detail)
       .join("; ");
-    const more = unchecked.length > 2 ? `; +${unchecked.length - 2} more` : "";
+    const more = judged.length > 2 ? `; +${judged.length - 2} more` : "";
     sentences.push(
-      `${unchecked.length === 1 ? "1 thing needs" : `${unchecked.length} things need`} your judgment: ${named}${more}.`,
+      `${judged.length === 1 ? "1 thing needs" : `${judged.length} things need`} your judgment: ${named}${more}.`,
     );
   }
 
@@ -166,9 +180,13 @@ export function formatReport(report: ChangeReport): string {
   if (unchecked.length === 0) {
     lines.push(`Unchecked: none — every claim had a runnable check`);
   } else {
-    lines.push(`Unchecked (${unchecked.length}) — named, not silently dropped:`);
+    const required = unchecked.filter(isRequiredCheck).length;
+    lines.push(
+      `Unchecked (${unchecked.length}) — named, not silently dropped` +
+        (required > 0 ? `; ${required} required by the lock, so the verdict is not verified:` : ":"),
+    );
     for (const i of unchecked) {
-      lines.push(`  ? ${i.subject} — ${i.reason ?? i.detail}`);
+      lines.push(`  ? ${isRequiredCheck(i) ? "REQUIRED " : ""}${i.subject} — ${i.reason ?? i.detail}`);
     }
   }
 
@@ -250,7 +268,9 @@ export function formatReportMarkdown(report: ChangeReport): string {
   if (unchecked.length === 0) {
     lines.push(`None — every claim had a runnable check.`);
   } else {
-    for (const i of unchecked) lines.push(`- ? **${i.subject}** — ${i.reason ?? i.detail}`);
+    for (const i of unchecked) {
+      lines.push(`- ? ${isRequiredCheck(i) ? "**required** · " : ""}**${i.subject}** — ${i.reason ?? i.detail}`);
+    }
   }
 
   if (report.findings.length > 0) {

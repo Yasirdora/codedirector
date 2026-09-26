@@ -36,7 +36,7 @@ import { sealLock } from "./lock/seal";
 import { checkLock } from "./lock/check";
 import { formatLock, formatLockLine } from "./lock/show";
 import { createCheckpoint, latestCheckpoint, undo, CheckpointError } from "./checkpoint";
-import { formatRunReport, runWithLock, RunError } from "./run/run";
+import { formatRunReport, RUN_EXIT, runWithLock, RunError } from "./run/run";
 import { VerifyError } from "./verify/verify";
 import { buildReport, finalizeLockStatus, ReportError } from "./report/report";
 import { formatReport, formatReportJson, formatReportMarkdown } from "./report/format";
@@ -84,8 +84,12 @@ Usage:
                                           budget + deny, then verify every KEEP
                                           clause (structural diffs, typecheck,
                                           tests, output hashes) and emit the
-                                          Change Report. Exit 0 only when the
-                                          command succeeded AND no violations.
+                                          Change Report. Exit 0 verified: the
+                                          command succeeded, nothing violated,
+                                          every required check ran. 1 failed.
+                                          3 incomplete: nothing violated, but a
+                                          KEEP clause or the verifyCommand did
+                                          not finish (timed out, could not run).
                                           --test-timeout overrides the lock's
                                           verifyTimeoutMs (default 60s) for
                                           tests and verifyCommand. Without a
@@ -95,7 +99,8 @@ Usage:
   cdir verify <lock-id> [--root DIR]      Re-run the verification ladder against
           [--test-timeout MS]             the latest baseline (tests, typecheck,
                                           output hashes) without re-running the
-                                          change command; --test-timeout as above
+                                          change command; --test-timeout as above.
+                                          Exit codes as for run.
   cdir report <lock-id> [--root DIR]      Render the Change Report: violations
           [--format=terminal|md|json]     first, then verified claims with
                                           evidence classes + artifact refs,
@@ -330,7 +335,7 @@ async function lockCommand(root: string, positional: string[], flags: Map<string
       const lock = loadLock(root, id);
       if (!lock) fail(`no such lock: ${id}`);
       // draft → active, or re-approval of a Lock that can still run (active,
-      // verified, failed) after a seal mismatch. Only abandoned is history.
+      // verified, incomplete, failed) after a seal mismatch. Only abandoned is history.
       if (lock.status === "abandoned") {
         fail(`lock ${id} has status "${lock.status}" — it cannot be activated`);
       }
@@ -515,7 +520,7 @@ async function main(): Promise<number> {
         finalizeLockStatus(root, report);
         const fmt = flagStr(flags, "format") ?? "terminal";
         process.stdout.write(renderReport(report, fmt) + "\n");
-        return report.verdict === "verified" ? 0 : 1;
+        return RUN_EXIT[report.verdict];
       } catch (e) {
         if (e instanceof VerifyError || e instanceof ReportError) fail(e.message);
         throw e;
@@ -530,7 +535,7 @@ async function main(): Promise<number> {
         finalizeLockStatus(root, report);
         const fmt = flagStr(flags, "format") ?? "terminal";
         process.stdout.write(renderReport(report, fmt) + "\n");
-        return report.verdict === "verified" ? 0 : 1;
+        return RUN_EXIT[report.verdict];
       } catch (e) {
         if (e instanceof VerifyError || e instanceof ReportError) fail(e.message);
         throw e;

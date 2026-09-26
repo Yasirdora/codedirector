@@ -23,7 +23,7 @@ lock:                       # Vibe Check fragment; the harness fills in
 command: node -e '...'      # the change, run via `cdir run IL-0001 -- <command>`
 expect:
   exitCode: 1               # process exit code of `cdir run`
-  status: failed            # lock status afterwards (verified/failed)
+  status: failed            # lock status afterwards (verified/incomplete/failed)
   violationsContaining:     # substrings that must appear in report violations
     - "KEEP tests-pass"
   items:                    # {match, class, verdict}: some report item whose

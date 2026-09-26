@@ -27,13 +27,14 @@ import { defaultDomains, DomainRegistry } from "../domain/registry";
 import { VibeCheck } from "../lock/types";
 import { languageOf } from "../lock/draft";
 import { loadLock, saveLock } from "../lock/store";
-import { BudgetStats, RunRecord, runsDir } from "../run/run";
+import { BudgetStats, RunRecord, runsDir, runVerdict, RunVerdict } from "../run/run";
 import { ClassifiedChange, rejudgeRun } from "../run/classify";
 import { verifyLock, VerifyOptions } from "../verify/verify";
 import {
   countByClass,
   EvidenceClass,
   enforceArtifactRule,
+  incompleteChecks,
   ProbePutBack,
   VerificationItem,
   VerificationReport,
@@ -51,8 +52,11 @@ export interface Finding {
 export interface ChangeReport {
   schemaVersion: 1;
   lockId: string;
-  /** verified = no violations and the command succeeded · failed otherwise. */
-  verdict: "verified" | "failed";
+  /**
+   * failed = a violation, or the command failed · incomplete = nothing
+   * violated, but a required check did not finish · verified = neither.
+   */
+  verdict: RunVerdict;
   /** The user's exact words — verbatim, immutable. */
   utterance: string;
   goal: string;
@@ -67,6 +71,8 @@ export interface ChangeReport {
   items: VerificationItem[];
   findings: Finding[];
   violations: string[];
+  /** Required checks that did not finish — the reason an unviolated report is not verified. */
+  incomplete: string[];
   /** Claims + findings per evidence class (all four keys always present). */
   counts: Record<EvidenceClass, number>;
 }
@@ -216,8 +222,10 @@ export async function buildReport(
     : run
       ? run.violations
       : verification.violations;
-  const verdict: ChangeReport["verdict"] =
-    violations.length > 0 || (run !== undefined && run.exitCode !== 0) ? "failed" : "verified";
+  // From the checks in this report, never from a stored verdict: a report
+  // that re-verified judges what it re-ran.
+  const incomplete = incompleteChecks(items);
+  const verdict = runVerdict(run === undefined || run.exitCode === 0, violations, incomplete);
 
   const counts = countByClass(items);
   counts.asserted += findings.length;
@@ -237,13 +245,14 @@ export async function buildReport(
     items,
     findings,
     violations,
+    incomplete,
     counts,
   };
 }
 
 /**
- * Persist the report's verdict onto the Lock: verified when everything
- * passed, failed on any violation. `cdir lock show` reflects it.
+ * Persist the report's verdict onto the Lock — verified, incomplete or
+ * failed. `cdir lock show` reflects it.
  */
 export function finalizeLockStatus(rootDir: string, report: ChangeReport): VibeCheck {
   const lock = loadLock(rootDir, report.lockId);

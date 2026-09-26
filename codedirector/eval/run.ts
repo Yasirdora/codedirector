@@ -7,7 +7,7 @@
  * and scores the run against the expectations:
  *
  *   expect.exitCode               process exit code of `cdir run`
- *   expect.status                 lock status after the run (verified/failed)
+ *   expect.status                 lock status after the run (verified/incomplete/failed)
  *   expect.violationsContaining[] substrings that must appear in violations
  *   expect.items[]                {match, class, verdict} — some report item whose
  *                                 subject/clauseKind contains `match` must carry
@@ -62,6 +62,7 @@ interface EvalCase {
     keep?: VibeCheck["keep"];
     deny?: string[];
     verifyCommand?: string;
+    verifyTimeoutMs?: number;
     budget: { files: string[]; maxFiles?: number; maxLines?: number };
   };
   command: string;
@@ -107,6 +108,7 @@ function composeLock(c: EvalCase, status: VibeCheck["status"] = "active"): VibeC
     deny: c.lock.deny ?? [],
     change: c.lock.change ?? c.name,
     ...(c.lock.verifyCommand !== undefined ? { verifyCommand: c.lock.verifyCommand } : {}),
+    ...(c.lock.verifyTimeoutMs !== undefined ? { verifyTimeoutMs: c.lock.verifyTimeoutMs } : {}),
     budget: {
       files: c.lock.budget.files,
       symbols: [],
@@ -181,7 +183,8 @@ function runCase(cliPath: string, c: EvalCase): CaseResult {
       timeout: 180_000,
       stdio: ["ignore", "pipe", "pipe"],
     });
-    if (rep.status !== 0 && rep.status !== 1) {
+    // 0 verified · 1 failed · 3 incomplete are verdicts; anything else is the report breaking.
+    if (rep.status !== 0 && rep.status !== 1 && rep.status !== 3) {
       failures.push(`cdir report failed (exit ${rep.status}): ${rep.stderr.slice(0, 300)}`);
       return { name: c.name, passed: false, failures, tmp, seconds };
     }

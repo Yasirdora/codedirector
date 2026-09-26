@@ -234,7 +234,7 @@ const TOOLS: ToolDef[] = [
       const lock = loadLock(root, lockId);
       if (!lock) return fail(`no such lock: ${lockId}`);
       // draft → active, or re-approval of a Lock that can still run (active, verified,
-      // failed) after a seal mismatch. Only abandoned is history.
+      // incomplete, failed) after a seal mismatch. Only abandoned is history.
       if (lock.status === "abandoned") {
         return fail(`lock ${lockId} has status "${lock.status}" — it cannot be activated`);
       }
@@ -252,7 +252,8 @@ const TOOLS: ToolDef[] = [
     description:
       "THE guarded execution path: checkpoint, capture the pre-change baseline, run the command, classify every " +
       "touched file against the Lock (deny/budget), verify every KEEP clause, and return the Change Report " +
-      "(plain summary on top). On violations or a failed command this returns an ERROR — show the report to the " +
+      "(plain summary on top). On violations, a failed command, or a required check that did not finish (incomplete: " +
+      "not verified) this returns an ERROR — show the report to the " +
       "human; nothing is auto-reverted (undo is available). " + WORKFLOW,
     inputSchema: {
       type: "object",
@@ -284,8 +285,14 @@ const TOOLS: ToolDef[] = [
         runRecordPath: outcome.recordPath,
       });
       const body = formatReport(report);
-      if (outcome.exitCode === 0) {
+      if (outcome.verdict === "verified") {
         return ok(`run ${lockId} succeeded — no violations.\n\n${body}`);
+      }
+      if (outcome.verdict === "incomplete") {
+        return fail(
+          `run ${lockId} INCOMPLETE — nothing was violated, but a required check did not finish, so nothing is verified. ` +
+            `Do not report this as done; show this report to the human. Nothing was reverted — undo() restores the checkpoint.\n\n${body}`,
+        );
       }
       return fail(
         `run ${lockId} FAILED (exit ${outcome.exitCode}) — violations below. ` +

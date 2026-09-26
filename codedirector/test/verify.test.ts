@@ -16,7 +16,7 @@ import { loadLock, saveLock } from "../src/lock/store";
 import { sealLock } from "../src/lock/seal";
 import { VibeCheck, KeepClause } from "../src/lock/types";
 import { captureBaseline, saveBaseline, latestBaselinePath, loadBaseline } from "../src/run/baseline";
-import { runWithLock } from "../src/run/run";
+import { formatRunReport, runWithLock } from "../src/run/run";
 import { verifyLock, verifyWithBaseline } from "../src/verify/verify";
 import { VerificationItem } from "../src/verify/types";
 import { buildReport } from "../src/report/report";
@@ -144,7 +144,9 @@ test("verify: tests-pass with an empty glob is a violation, not a silent pass", 
 
 test("verify: a tests-pass glob that reaches a Swift file is unchecked with the reason, not failing", async () => {
   // Reproduced on 0.4.5: a passing Swift test file was reported "tests
-  // failing (exit 1)" — node --test ran it as a JavaScript file.
+  // failing (exit 1)" — node --test ran it as a JavaScript file. Not failing,
+  // and not verified either: the Lock asked for these tests and none ran,
+  // so the run is incomplete (exit 3) — it used to exit 0.
   const { root, lock } = await setup([{ kind: "tests-pass", glob: "Tests/**" }]);
   fs.mkdirSync(path.join(root, "Tests"), { recursive: true });
   fs.writeFileSync(
@@ -154,10 +156,14 @@ test("verify: a tests-pass glob that reaches a Swift file is unchecked with the 
   git(root, ["add", "Tests"]);
   git(root, ["commit", "-qm", "swift tests"]);
   const outcome = await runWithLock(root, lock.id, [NODE, "-e", append("src/math.js", "// ok\n")], { stdio: "pipe" });
-  assert.equal(outcome.exitCode, 0, outcome.record.violations.join("; "));
+  assert.deepEqual(outcome.record.violations, []);
+  assert.equal(outcome.verdict, "incomplete");
+  assert.equal(outcome.exitCode, 3);
   const item = find(outcome.record.verification!.items, "tests-pass")[0];
   assert.equal(item.verdict, "unchecked");
   assert.match(item.reason ?? "", /node --test cannot run 1 matched file\(s\) \(Tests\/AppTests\.swift\)/);
+  // More time would not help: the remedy offered is not a longer timeout.
+  assert.doesNotMatch(formatRunReport(outcome), /--test-timeout/);
 });
 
 test("verify: output-unchanged round-trips and detects change", async () => {
@@ -335,6 +341,7 @@ test("verify: verifyTimeoutMs precedence — lock field applies, CLI/API overrid
   const timedItem = timed.record.verification!.items.find((i) => i.source === "verify-command");
   assert.equal(timedItem?.verdict, "unchecked");
   assert.ok(timedItem?.reason?.includes("timed out after 100ms"), `reason: ${timedItem?.reason}`);
+  assert.equal(timed.verdict, "incomplete", "a verifyCommand that timed out is not verified");
 
   // ...and an explicit testTimeoutMs overrides the lock field, letting it pass.
   saveLock(root, { ...lock, status: "active" });
@@ -345,6 +352,7 @@ test("verify: verifyTimeoutMs precedence — lock field applies, CLI/API overrid
   });
   const heldItem = overridden.record.verification!.items.find((i) => i.source === "verify-command");
   assert.equal(heldItem?.verdict, "held", `detail: ${heldItem?.detail}`);
+  assert.equal(overridden.verdict, "verified");
 });
 
 test("verify: explicit testTimeoutMs applies when the lock has no verifyTimeoutMs", async () => {

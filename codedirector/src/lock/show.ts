@@ -101,5 +101,5 @@ export function formatLock(lock: VibeCheck, check?: LockCheckResult): string {
 /** One-line summary for `cdir lock ls`. */
 export function formatLockLine(lock: VibeCheck): string {
   const said = lock.utterance.length > 60 ? lock.utterance.slice(0, 57) + "..." : lock.utterance;
-  return `${lock.id}  ${lock.status.padEnd(9)}  ${said}`;
+  return `${lock.id}  ${lock.status.padEnd(10)}  ${said}`;
 }
