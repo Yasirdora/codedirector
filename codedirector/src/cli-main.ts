@@ -442,7 +442,7 @@ async function main(): Promise<number> {
           `restored ${result.checkpoint.tag} (${result.checkpoint.ref.slice(0, 12)})`,
         ];
         if (result.lostFiles.length > 0) {
-          lines.push(`discarded uncommitted changes in:`);
+          lines.push(`put back as they were at the checkpoint (changes since then discarded):`);
           for (const f of result.lostFiles) lines.push(`  ${f}`);
         }
         if (result.deletedUntracked.length > 0) {
@@ -450,11 +450,23 @@ async function main(): Promise<number> {
           for (const f of result.deletedUntracked) lines.push(`  ${f}`);
         }
         if (result.untrackedRemaining.length > 0) {
-          lines.push(`note: untracked files left in place:`);
+          lines.push(`kept untracked files created after the checkpoint (--keep-untracked):`);
           for (const f of result.untrackedRemaining) lines.push(`  ${f}`);
+        }
+        if (result.lostFiles.length === 0 && result.deletedUntracked.length === 0 && result.untrackedRemaining.length === 0) {
+          lines.push(`nothing had changed since the checkpoint`);
         }
         if (!prev) lines.push(`note: no earlier checkpoints remain`);
         process.stdout.write(lines.join("\n") + "\n");
+        // Checked, not assumed: undo compares the tree with the checkpoint afterwards.
+        if (result.notRestored.length > 0) {
+          process.stderr.write(
+            `cdir undo: NOT restored — these still differ from the checkpoint:\n` +
+              result.notRestored.map((f) => `  ${f}`).join("\n") +
+              `\n`,
+          );
+          return 1;
+        }
         return 0;
       } catch (e) {
         if (e instanceof CheckpointError) fail(e.message);

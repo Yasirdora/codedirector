@@ -290,7 +290,17 @@ tag `cdir/ckpt-<timestamp>` at HEAD plus a byte snapshot of dirty /
 skip-worktree files under `.codedirector/ckpt-blobs/`. `undo` resets to the
 tagged ref and restores that snapshot — including a dirty tree as of
 checkpoint time (`--force`) and skip-worktree files that `git reset --hard`
-would otherwise leave. Honest limit: git cannot undo external side effects.
+would otherwise leave — and removes again what was absent then (a file
+deleted, or a rename's source, before the checkpoint). Honest limit: git
+cannot undo external side effects.
+
+What undo will change is computed once, before it acts: every file as it is
+now against the file as it was at the checkpoint. The refusal over a dirty
+checkpoint lists exactly that — "b.txt — reverted to the checkpoint",
+"made.txt — deleted (created after the checkpoint)", and any commits made
+since, which leave the branch — never the dirt it restores exactly as it
+was. Afterwards undo compares the tree with the checkpoint again: a file
+that still differs is named ("NOT restored") and the command exits 1.
 
 **⚠ Behavior change from v0.1.0:** untracked files created *after* the
 checkpoint are **deleted** by undo (v0.1.0 left them in place). The files

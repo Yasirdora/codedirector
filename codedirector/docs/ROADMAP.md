@@ -38,10 +38,49 @@ Swift files (which `node --test` cannot run) exited 0. It is now incomplete.
   old list of changed files~~ — landed (IL-0029), below.
 - ~~Swift overloads share one symbol id, so changing one overload's
   parameter type passes `api-unchanged`~~ — landed (IL-0030), below.
-- `undo --force` brings back a tracked file deleted before the checkpoint
-  (listed under *Untracked directories…* below).
+- ~~`undo --force` brings back a tracked file deleted before the
+  checkpoint~~ — landed (IL-0031), below.
 - The parser loads every grammar before parsing anything: a missing Swift
   grammar stops a TypeScript-only project from being indexed.
+
+### Undo brought back files deleted before the checkpoint, and its preview listed the wrong files
+
+**Status: landed (IL-0031).** Audit finding F1b, reproduced on 71fd21e with
+the audit's own script: a tracked file deleted before the checkpoint was
+back after `undo --force` ("deleted.txt exists after undo: YES"). The
+snapshot tried to copy every dirty path, skipped a missing one as
+"vanished" and never recorded that it was gone; `git reset --hard`
+recreated it. A rename's source came back the same way. And the account undo
+gave was wrong in three places: the refusal's "What will be LOST" listed
+every path dirty now — pre-existing untracked files and edits the undo
+restores exactly as they were included; "discarded uncommitted changes in"
+did the same afterwards; and "untracked files left in place" listed every
+dirty path after the undo, restored tracked files included.
+
+- The checkpoint records what was absent (`absent` in its snapshot), and
+  undo removes it again after the reset. Checkpoints made before this still
+  resurrect: they never recorded it.
+- What undo will change is one plan (`planUndo`, `src/checkpoint/index.ts`):
+  every file as it is now against the file as it was at the checkpoint —
+  the snapshot's bytes, absent, or the checkpoint commit's content compared
+  the way git stores it (`hash-object` applies the path's filters, so
+  line-ending and LFS conversions are not changes; a symlink is compared by
+  its target, which is what git stores and what `hash-object` would not
+  read; a submodule is not undo's to judge). The refusal lists it
+  ("reverted to the checkpoint", "restored (deleted after the checkpoint)",
+  "removed (absent at the checkpoint)", "deleted (created after the
+  checkpoint)", and commits made since, which leave the branch); the result
+  reports it; `--keep-untracked` keeps exactly the files created since.
+- Checked, not assumed: after undoing, the same comparison runs again, and
+  a file that still differs is named — "NOT restored", exit 1 from the CLI,
+  an error from the MCP `undo` tool.
+
+Guarded by 8 new tests in `test/checkpoint.test.ts`, one of them through the
+CLI. Not recording absent paths fails 4; recording them without removing
+them fails the same 4 — and the post-undo check, run by itself under that
+mutation, names the resurrected file; hashing a symlink through its link
+fails the symlink test. There is no eval case: the harness
+drives `cdir run` and `cdir report`, not undo.
 
 ### Overloads shared an id, and api-unchanged compared only one of them
 
@@ -340,12 +379,9 @@ checkpoint. `git status` now lists untracked files one by one
 captured gets a fingerprint of its own, so neither a pre-existing untracked
 folder nor a pre-existing deletion reads as the run's change (eDraft IL-0045's
 three PNGs were the deletion case). The tolerated OUT-OF-BUDGET that
-`test/run.test.ts` pinned is gone. Still open, both in undo:
-
-- The `undo --force` preview lists pre-existing untracked files as "will be
-  LOST" and then leaves them in place.
-- `undo --force` brings back a tracked file that was already deleted before
-  the checkpoint (`git reset --hard`), undoing someone else's deletion.
+`test/run.test.ts` pinned is gone. The two undo items that stayed open here
+landed in IL-0031 (*Undo brought back files deleted before the checkpoint*,
+above).
 
 The evidence below is kept as the record.
 

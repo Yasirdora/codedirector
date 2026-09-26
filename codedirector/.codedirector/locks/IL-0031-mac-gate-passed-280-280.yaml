@@ -1,0 +1,84 @@
+schemaVersion: 1
+id: IL-0031
+status: verified
+utterance: |-
+  Mac gate passed: 280/280, 0 failures, at 71fd21e. Open IL-0030's PR — once it's up I'll have it merged, same as #4 and #5.
+  Then proceed with F1b (undo resurrecting a file deleted before the checkpoint, and the inaccurate undo preview).
+goal: "Undo restores the checkpoint exactly — a file absent at the checkpoint (deleted, or a rename's source) stays absent — and says exactly what it will do and did: one plan, file by file against the checkpoint, for the refusal preview and the result, checked again after undoing; npm test is green on the owner's Mac."
+interpretation: |
+  AUDIT FINDING F1b, REPRODUCED ON 71fd21e (the audit's own script): a
+  tracked file deleted before the checkpoint is back after `undo --force`.
+  The snapshot skipped the missing file as "vanished" and never recorded it
+  was gone; `git reset --hard` recreated it. A rename's source the same.
+  AND THE ACCOUNT WAS WRONG in three places: the refusal's "What will be
+  LOST" listed every path dirty now (pre-existing untracked files and edits
+  undo restores exactly as they were); "discarded uncommitted changes in"
+  the same afterwards; "untracked files left in place" listed every dirty
+  path after the undo.
+
+  BUILT IN A SPIKE FIRST: a scratch clone of 71fd21e; the run copies the
+  spike's 6 files in.
+
+  1 The checkpoint records absent paths; undo removes them after the reset.
+  2 One plan (planUndo): every file now against the file at the checkpoint
+    — snapshot bytes, absent, or the checkpoint commit's content compared
+    as git stores it (filters applied; a symlink by its target; a submodule
+    skipped). The refusal lists it, file by file and commits since; the
+    result reports it; --keep-untracked keeps exactly the files created
+    since.
+  3 Checked, not assumed: after undoing, the same comparison again; a file
+    that still differs is named — "NOT restored", exit 1 (CLI), an error
+    (MCP undo).
+
+  MUTATIONS: absent paths not recorded — 4 tests fail; recorded but not
+  removed — the same 4, and the post-undo check alone names the
+  resurrected file; a symlink hashed through its link — the symlink test.
+
+  EVIDENCE FROM THE SPIKE: npm test 288/288 on Node 22.22, Node 24.15 and in
+  the Mac-like composite; eval 22/22 (the harness drives run and report,
+  not undo: no eval case); the audit's script: "deleted.txt exists after
+  undo: YES" before, "no" after, F1A still restored. THE GATE is the
+  owner's Mac: 288/288. Unchecked here.
+keep:
+  - kind: no-new-dependency
+  - kind: custom
+    text: "npm test is green on the owner's Mac — the gate the owner set (288/288 now: this lock adds eight tests); this container can only stand in for it"
+deny:
+  - package.json
+  - package-lock.json
+  - dist/**
+  - node_modules/**
+  - src/core/**
+  - src/domain/**
+  - src/domains/**
+  - src/lock/**
+  - src/verify/**
+  - src/report/**
+  - src/run/**
+  - src/hook/**
+  - src/cli.ts
+  - .gitignore
+change: undo keeps what was absent at the checkpoint absent, and its preview, result and post-check are one plan
+verifyCommand: npm test
+verifyTimeoutMs: 900000
+budget:
+  files:
+    - README.md
+    - docs/ROADMAP.md
+    - src/checkpoint/index.ts
+    - src/cli-main.ts
+    - src/mcp/server.ts
+    - test/checkpoint.test.ts
+  symbols: []
+  maxFiles: 6
+  maxLines: 650
+accept: []
+assumptions:
+  - text: Checkpoints made before this change never recorded absent paths, so undoing to one of them still recreates a file deleted before it; the post-undo check names that file instead of passing silently.
+    source: system
+    confirmed: false
+  - text: A file that still differs after undo makes `cdir undo` exit 1 and the MCP undo tool return an error — undo reports what it did, it does not claim success.
+    source: system
+    confirmed: false
+createdAt: 2026-09-26T21:49:27.855Z
+createdBy: Yasirdora
