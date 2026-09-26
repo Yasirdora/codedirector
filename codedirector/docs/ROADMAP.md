@@ -34,9 +34,8 @@ Swift files (which `node --test` cannot run) exited 0. It is now incomplete.
 
 **Still open from the same audit** (all reproduced on bb4b0cd):
 
-- A standalone `cdir report` re-runs today's checks but prints the run's
-  old list of changed files: a file changed after the run is not mentioned,
-  and the report says "Done — verified. Only allowed.txt changed".
+- ~~A standalone `cdir report` re-runs today's checks but prints the run's
+  old list of changed files~~ — landed (IL-0029), below.
 - Swift overloads share one symbol id (`Store.swift#Store.save` for
   `save(_: Int)` and `save(_: String)`), so changing one overload's
   parameter type passes `api-unchanged`.
@@ -44,6 +43,44 @@ Swift files (which `node --test` cannot run) exited 0. It is now incomplete.
   (listed under *Untracked directories…* below).
 - The parser loads every grammar before parsing anything: a missing Swift
   grammar stops a TypeScript-only project from being indexed.
+
+### A report judged today's checks against the run's old list of files
+
+**Status: landed (IL-0029).** Audit finding F5, reproduced on 6784394: a
+clean run edited allowed.txt; protected.txt, denied by the Lock, was then
+changed by hand. `cdir report` re-ran today's checks but judged scope on the
+run's stored list: "Done — verified. Only allowed.txt changed, within the
+agreed scope." protected.txt was never mentioned.
+
+A standalone report or verify now judges the tree as it is now, its scope
+included (`judgeTreeNow`, `src/run/classify.ts`): the changed files are found
+again against the run's baseline — the classifier the run itself uses — and
+the ceilings measured on them. Every file that changed after the run is
+named ("1 file changed after the run, not by its command: protected.txt") and
+judged like any other. To see a further edit to a file the run itself
+changed, a run now records each changed file's hash as it left it; a record
+written before then still shows new paths. Without a trustworthy baseline the
+run's own list is shown and the report is incomplete (or failed, when the
+baseline's recorded hash no longer matches — tampering, as before).
+`--allow-expand` keeps covering the run's own changes, not what came after.
+
+`cdir report` no longer sets the lock's status — `cdir run` and `cdir
+verify` do (the MCP `report` tool never did). Otherwise an old Lock's report,
+read after later work, would turn it failed.
+
+Guarded by `test/drift.test.ts` and eval case 21 (the harness gained
+`afterRun`, a change made between the run and the report). Judging the
+stored list again fails 7 of the tests; dropping the hash comparison fails
+the further-edit test; a report that sets the status fails its own.
+
+**Also in IL-0029, found alongside:** a `cdir verify` with no run behind it
+— the direct-edit path the agent skill describes (`cdir checkpoint`, edit,
+`cdir verify`) — judged no scope at all ("no run record — verification
+only"). Reproduced: "Done — verified", exit 0, over an edit to a denied
+file. Without a run there is no baseline to find the changed files against,
+so the verdict is now incomplete, naming why. **Still open:** that path has
+no way to reach verified; a checkpoint that captures the Lock's baseline
+would give it one. Until then the skill steers work through `cdir run`.
 
 ### Stopping cdir during a check leaves the check running
 

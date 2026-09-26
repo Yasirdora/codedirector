@@ -1,0 +1,7 @@
+Mac gate passed: 260/260, 0 failures, at 6784394. That was the one missing check — IL-0028 is good.
+Yes, open a PR for IL-0028 (main already has the PR #3 merge, bb4b0cd, so the PR should be a clean one-commit diff). Once it's up I'll have it merged.
+Then proceed with IL-0029 (F5: cdir report should say it describes a past run, or recheck scope against current files and flag drift).
+Two notes, no action needed:
+
+1. Your deliberate behavior change (a tests-pass pattern matching Swift files now exits 3 "incomplete" instead of 0) is the right call. We'll watch the eDraft repo's existing locks when they pick up this version, in case any lock's tests-pass clause matches Swift test files and starts reporting incomplete.
+2. Acknowledged the new ROADMAP finding (stopping cdir mid-check leaves the check running until its own timeout). Agreed it belongs with the long-checks-block-MCP item, not this lock.

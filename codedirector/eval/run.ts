@@ -13,6 +13,11 @@
  *                                 subject/clauseKind contains `match` must carry
  *                                 exactly this evidence class and verdict
  *   expect.uncheckedMin           minimum size of the Unchecked bucket
+ *   expect.reportVerdict          the report's verdict (it judges the tree as it is then)
+ *   expect.drift[]                exactly the files the report names as changed after the run
+ *
+ * afterRun (optional) is a shell command run in the repo between `cdir run`
+ * and `cdir report` — a change made after the run, not by its command.
  *
  * The gate: any unmet expectation fails the case; any failed case exits
  * non-zero. Case directories are removed on PASS and kept (path printed) on
@@ -47,6 +52,8 @@ interface EvalExpect {
   violationsContaining?: string[];
   items?: ExpectedItem[];
   uncheckedMin?: number;
+  reportVerdict?: ChangeReport["verdict"];
+  drift?: string[];
 }
 
 interface EvalCase {
@@ -66,6 +73,7 @@ interface EvalCase {
     budget: { files: string[]; maxFiles?: number; maxLines?: number };
   };
   command: string;
+  afterRun?: string;
   expect: EvalExpect;
 }
 
@@ -87,6 +95,7 @@ function validateCase(raw: unknown, file: string): EvalCase {
     if (!CLAUSES.has(k?.kind)) bad(`unknown keep kind: ${JSON.stringify(k?.kind)}`);
   }
   if (typeof c.command !== "string" || !c.command) bad("missing command");
+  if (c.afterRun !== undefined && (typeof c.afterRun !== "string" || !c.afterRun)) bad("afterRun must be a non-empty string");
   if (!c.expect || typeof c.expect.exitCode !== "number") bad("expect.exitCode must be a number");
   for (const i of c.expect.items ?? []) {
     if (typeof i.match !== "string") bad("expect.items[].match must be a string");
@@ -178,6 +187,11 @@ function runCase(cliPath: string, c: EvalCase): CaseResult {
       failures.push(`exitCode: expected ${c.expect.exitCode}, got ${run.status}\n  run output tail: ${(run.stdout + run.stderr).split("\n").slice(-8).join(" | ")}`);
     }
 
+    if (c.afterRun !== undefined) {
+      const after = spawnSync("sh", ["-c", c.afterRun], { cwd: tmp, encoding: "utf8", timeout: 60_000 });
+      if (after.status !== 0) failures.push(`afterRun exited ${after.status}: ${after.stderr.slice(0, 300)}`);
+    }
+
     const rep = spawnSync(process.execPath, [cliPath, "report", "IL-0001", "--root", tmp, "--format=json"], {
       encoding: "utf8",
       timeout: 180_000,
@@ -211,6 +225,12 @@ function runCase(cliPath: string, c: EvalCase): CaseResult {
             JSON.stringify(report.items.map((i) => [i.subject, i.evidenceClass, i.verdict])),
         );
       }
+    }
+    if (c.expect.reportVerdict !== undefined && report.verdict !== c.expect.reportVerdict) {
+      failures.push(`report verdict: expected ${c.expect.reportVerdict}, got ${report.verdict} — ${JSON.stringify(report.violations)}`);
+    }
+    if (c.expect.drift !== undefined && JSON.stringify(report.drift) !== JSON.stringify(c.expect.drift)) {
+      failures.push(`drift: expected ${JSON.stringify(c.expect.drift)}, got ${JSON.stringify(report.drift)}`);
     }
     if (c.expect.uncheckedMin !== undefined && report.counts.unchecked < c.expect.uncheckedMin) {
       failures.push(`unchecked bucket too small: expected >= ${c.expect.uncheckedMin}, got ${report.counts.unchecked}`);

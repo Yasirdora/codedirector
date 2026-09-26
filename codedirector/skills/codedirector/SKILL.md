@@ -42,6 +42,8 @@ gets questions and options FIRST — not research:
    begins. The user must never have to name a lock or run a command.
 3. **Work**: `cdir run IL-XXXX -- <command>`; or when editing directly:
    `cdir checkpoint`, touch only budgeted files, then `cdir verify IL-XXXX`.
+   Without a run, cdir has no baseline to find the changed files against,
+   so that verdict is incomplete, not verified — prefer `cdir run`.
    Need a file outside the budget? Stop and ask — a scope change is the
    user's call, never yours.
 4. **Report**: `cdir report IL-XXXX`. Plain summary first; name violations

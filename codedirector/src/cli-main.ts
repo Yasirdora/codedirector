@@ -96,16 +96,21 @@ Usage:
                                           lock id: refused (the whole point is
                                           the contract).
 
-  cdir verify <lock-id> [--root DIR]      Re-run the verification ladder against
-          [--test-timeout MS]             the latest baseline (tests, typecheck,
-                                          output hashes) without re-running the
-                                          change command; --test-timeout as above.
-                                          Exit codes as for run.
-  cdir report <lock-id> [--root DIR]      Render the Change Report: violations
-          [--format=terminal|md|json]     first, then verified claims with
-                                          evidence classes + artifact refs,
-                                          then the Unchecked bucket (always
-                                          visible), then asserted findings
+  cdir verify <lock-id> [--root DIR]      Judge the tree as it is now without
+          [--test-timeout MS]             re-running the change command: the
+                                          ladder (tests, typecheck, output
+                                          hashes) against the run's baseline,
+                                          and the scope from the files changed
+                                          since it; names every file changed
+                                          after the run. --test-timeout as above.
+                                          Sets the lock status; exit codes as
+                                          for run.
+  cdir report <lock-id> [--root DIR]      Render the Change Report, judged as
+          [--format=terminal|md|json]     verify does: violations first, then
+                                          verified claims with evidence classes
+                                          + artifact refs, then the Unchecked
+                                          bucket (always visible), then asserted
+                                          findings. Leaves the lock status alone
 
   cdir mcp [--root DIR]                   Serve the Code Director workflow over
                                           MCP (stdio) — the supported integration
@@ -532,7 +537,9 @@ async function main(): Promise<number> {
       if (!lockId) fail("report requires a lock id, e.g. cdir report IL-0001", 2);
       try {
         const report = await buildReport(root, lockId);
-        finalizeLockStatus(root, report);
+        // Reading a report is not a verdict on the Lock: its status is left
+        // as the run or the last `cdir verify` set it. An old Lock's report,
+        // read after later work, must not turn it failed.
         const fmt = flagStr(flags, "format") ?? "terminal";
         process.stdout.write(renderReport(report, fmt) + "\n");
         return RUN_EXIT[report.verdict];

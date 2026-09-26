@@ -378,14 +378,20 @@ still run — so a Lock with structural clauses is incomplete until a run
 captures one. Updates the lock status; exit codes as for `cdir run`. After an
 incomplete run, `cdir verify <id> --test-timeout MS` re-checks with more time.
 
-It also re-**judges**. Every path the run recorded is re-classified against
-the Lock as it stands now, and both ceilings are re-read from it — so raising
-`maxLines` after a refusal and re-verifying gives a truthful new verdict
-instead of reprinting the old one. It convicts as readily as it acquits: a
-`deny` added after a clean run turns the verdict to failed. The measured line
-count is carried over rather than re-derived, since it belongs to the
-baseline the run made. Editing a Lock breaks its seal, so re-approval
-(`cdir lock check` then `cdir lock activate`) is still a human act.
+It also re-**judges** — the tree as it is now, against the Lock as it stands
+now. The checks run on today's files, and so does the scope: the changed
+files are found again against the run's baseline, the way the run found
+them, and both ceilings are re-read from the Lock. Raising `maxLines` after a
+refusal and re-verifying gives a truthful new verdict instead of reprinting
+the old one; a `deny` added after a clean run turns the verdict to failed.
+Every file that changed **after the run** — a new change, a further edit to
+a file the run changed (the run records each file's hash as it left it), or
+the run's change undone — is named: "1 file changed after the run, not by
+its command: protected.txt". It is judged like any other: a denied file
+fails the verdict. Without the run's baseline the tree cannot be judged: the
+run's own list is shown, and the verdict is at best incomplete. Editing a
+Lock breaks its seal, so re-approval (`cdir lock check` then `cdir lock
+activate`) is still a human act.
 
 `--test-timeout MS` (on both `run` and `verify`) sets the timeout for
 `tests-pass` runs and the lock's `verifyCommand`, overriding the lock's
@@ -408,7 +414,11 @@ commands — `cdir run` verification remains the hard floor.
 
 ### `cdir report <lock-id> [--format=terminal|md|json]`
 
-Renders the **Change Report** — the product's signature artifact. It opens
+Renders the **Change Report** — the product's signature artifact. After a
+run it is judged as `cdir verify` judges (above): checks and scope describe
+the tree as it is now, and files changed after the run are named. Reading a
+report leaves the lock's status alone — `cdir run` and `cdir verify` set it —
+so an old Lock's report, read after later work, cannot turn it failed. It opens
 with a plain-language summary generated from the same data as the detail
 ("Done — verified. Only src/preview.ts changed, within the agreed scope. 2
 promises held (checked). 1 thing needs your judgment…" — or, on failure,

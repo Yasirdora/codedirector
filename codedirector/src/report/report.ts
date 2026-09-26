@@ -28,7 +28,8 @@ import { VibeCheck } from "../lock/types";
 import { languageOf } from "../lock/draft";
 import { loadLock, saveLock } from "../lock/store";
 import { BudgetStats, RunRecord, runsDir, runVerdict, RunVerdict } from "../run/run";
-import { ClassifiedChange, rejudgeRun } from "../run/classify";
+import { ClassifiedChange, judgeTreeNow, JudgedNow, rejudgeRun } from "../run/classify";
+import { Baseline, baselineFileHash, loadBaseline } from "../run/baseline";
 import { verifyLock, VerifyOptions } from "../verify/verify";
 import {
   countByClass,
@@ -66,6 +67,11 @@ export interface ChangeReport {
   runRecordPath?: string;
   baselinePath?: string;
   changed: ClassifiedChange[];
+  /**
+   * Files changed after the run, not by its command (see judgeTreeNow).
+   * Always empty for the report a run prints itself.
+   */
+  drift: string[];
   budget?: BudgetStats;
   /** All checked claims, artifact-rule already enforced. */
   items: VerificationItem[];
@@ -170,6 +176,24 @@ export function putBackFinding(p: ProbePutBack): Finding {
   };
 }
 
+/**
+ * The run's baseline, if it can still be trusted: the scope of the tree as
+ * it is now is judged against it. Otherwise why not.
+ */
+function runBaseline(rootDir: string, run: RunRecord): { baseline: Baseline } | { unusable: string } {
+  if (!run.baselinePath) return { unusable: "the run recorded no baseline" };
+  const abs = path.join(rootDir, run.baselinePath);
+  if (!fs.existsSync(abs)) return { unusable: `the run's baseline ${run.baselinePath} is missing` };
+  if (run.baselineSha256 !== undefined && baselineFileHash(abs) !== run.baselineSha256) {
+    return { unusable: `the run's baseline ${run.baselinePath} was modified after the run` };
+  }
+  try {
+    return { baseline: loadBaseline(abs) };
+  } catch {
+    return { unusable: `the run's baseline ${run.baselinePath} could not be read` };
+  }
+}
+
 export async function buildReport(
   rootDir: string,
   lockId: string,
@@ -196,23 +220,49 @@ export async function buildReport(
       : latest.recordPath
     : undefined;
 
-  // THE REJUDGE. A standalone verify or report judges the recorded change
-  // against the Lock as it stands now, rather than reprinting the verdict
-  // stored when the command ran. Without this, raising a ceiling and
-  // re-verifying still reported the ceiling the run was refused by, and the
-  // only remedy was reverting the work and applying it again.
+  // THE REJUDGE. A standalone verify or report judges the tree as it is now
+  // against the Lock as it stands now — its checks re-run above, and its
+  // scope here — rather than reprinting the verdict stored when the command
+  // ran. Raising a ceiling and re-verifying gives a truthful new verdict; a
+  // file changed after the run is judged and named (audit finding F5: the
+  // scope used to be the run's stored list, so such a file went unmentioned
+  // under "Done — verified").
+  //
+  // Without a trustworthy baseline the tree cannot be judged: the run's own
+  // list is rejudged instead, and the report is incomplete, saying why.
   //
   // Never on a live run (`opts.run`): that classified against this same Lock
   // moments ago, and re-deriving it would say the same thing more slowly.
-  const rejudged = !opts.run && run ? rejudgeRun(run, lock) : undefined;
+  let rejudged: JudgedNow | undefined;
+  const scopeNotRun: string[] = [];
+  if (!run) {
+    // No run, no baseline: which files changed cannot be found, so scope —
+    // which every Lock requires — is not judged, and nothing is verified.
+    // This is `cdir verify` after direct edits: it used to say "Done —
+    // verified" over an edit to a denied file.
+    scopeNotRun.push(
+      "NOT RUN scope · the changed files: no run of this lock has captured a baseline, so the files changed cannot be found — `cdir run` captures one",
+    );
+  } else if (!opts.run) {
+    const found = runBaseline(rootDir, run);
+    if ("baseline" in found) {
+      rejudged = judgeTreeNow(rootDir, lock, run, found.baseline);
+    } else {
+      rejudged = { ...rejudgeRun(run, lock), drift: [] };
+      scopeNotRun.push(
+        `NOT RUN scope · the tree as it is now: ${found.unusable} — the changed files shown are the run's recorded list`,
+      );
+    }
+  }
 
   const items = enforceArtifactRule(verification.items);
 
+  const changed = rejudged?.changed ?? run?.changed ?? [];
   let findings: Finding[] = [];
-  if (opts.findings !== false && run && run.changed.length > 0) {
+  if (opts.findings !== false && changed.length > 0) {
     const domains = opts.domains ?? defaultDomains();
     const index = opts.index ?? (await buildIndex(rootDir, { domains })).index;
-    findings = computeFindings(index, run.changed, domains);
+    findings = computeFindings(index, changed, domains);
   }
   // Always named, whatever else is: files were moved aside.
   findings.push(...(verification.putBack ?? []).map(putBackFinding));
@@ -224,7 +274,7 @@ export async function buildReport(
       : verification.violations;
   // From the checks in this report, never from a stored verdict: a report
   // that re-verified judges what it re-ran.
-  const incomplete = incompleteChecks(items);
+  const incomplete = [...scopeNotRun, ...incompleteChecks(items)];
   const verdict = runVerdict(run === undefined || run.exitCode === 0, violations, incomplete);
 
   const counts = countByClass(items);
@@ -240,7 +290,8 @@ export async function buildReport(
     ...(run ? { command: run.command } : {}),
     ...(runRecordPath !== undefined ? { runRecordPath } : {}),
     ...(verification.baselinePath !== undefined ? { baselinePath: verification.baselinePath } : {}),
-    changed: rejudged?.changed ?? run?.changed ?? [],
+    changed,
+    drift: rejudged?.drift ?? [],
     ...(rejudged ? { budget: rejudged.budget } : run ? { budget: run.budget } : {}),
     items,
     findings,

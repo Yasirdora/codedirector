@@ -1,0 +1,26 @@
+name: report-names-drift
+# The audit's reproduction (F5): a clean run edits allowed.txt; afterwards
+# protected.txt — denied by the lock — is changed by hand. The report used
+# to re-run today's checks over the run's old list of changed files: "Done —
+# verified. Only allowed.txt changed". It now judges the tree as it is, names
+# the file changed after the run, and fails. The run's own verdict, and the
+# lock's status, stay as the run left them: reading a report is not a verdict.
+files:
+  allowed.txt: |
+    a
+  protected.txt: |
+    p
+lock:
+  utterance: edit allowed
+  deny: ["protected.txt"]
+  budget:
+    files: ["allowed.txt"]
+command: node -e 'require("fs").appendFileSync("allowed.txt","x\n")'
+afterRun: echo tampered >> protected.txt
+expect:
+  exitCode: 0
+  status: verified
+  reportVerdict: failed
+  drift: ["protected.txt"]
+  violationsContaining:
+    - 'DENY: protected.txt'

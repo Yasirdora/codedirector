@@ -180,6 +180,15 @@ function changedFilesSinceBaseline(
   return out.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+/** A file's bytes: sha256, or ABSENT when there is no file (deleted, or never there). */
+export function fingerprint(rootDir: string, relPath: string): string {
+  try {
+    return sha256Bytes(fs.readFileSync(path.join(rootDir, relPath)));
+  } catch {
+    return ABSENT;
+  }
+}
+
 /** Classify a single path against the Lock. */
 export function classifyPath(lock: VibeCheck, relPath: string): ClassifiedChange {
   const normalized = relPath.replace(/\\/g, "/");
@@ -196,10 +205,11 @@ export function classifyPath(lock: VibeCheck, relPath: string): ClassifiedChange
  * The scope half of a verdict, in words.
  *
  * Lives here rather than at the call site because two callers need it — the
- * live run, and a standalone verify judging a recorded run again — and two
- * spellings of one verdict would be free to drift apart.
+ * live run, and a standalone verify judging the tree again — and two
+ * spellings of one verdict would be free to drift apart. Without `budget`
+ * the ceilings are not judged (a run's --allow-expand waived them).
  */
-export function scopeViolations(changed: ClassifiedChange[], budget: BudgetStats): string[] {
+export function scopeViolations(changed: ClassifiedChange[], budget?: BudgetStats): string[] {
   const out: string[] = [];
   for (const c of changed) {
     if (c.class === "denied") {
@@ -208,6 +218,7 @@ export function scopeViolations(changed: ClassifiedChange[], budget: BudgetStats
       out.push(`OUT-OF-BUDGET: ${c.path} is not in budget.files`);
     }
   }
+  if (!budget) return out;
   if (budget.filesChanged > budget.maxFiles) {
     out.push(`BUDGET: ${budget.filesChanged} files changed > maxFiles ${budget.maxFiles}`);
   }
@@ -224,21 +235,66 @@ export interface Rejudged {
   violations: string[];
 }
 
+/** The tree as it is now, judged against the Lock as it is now. */
+export interface JudgedNow extends Rejudged {
+  /**
+   * Files changed after the run — not by its command: changed now but not
+   * by the run, changed again since, or the run's change undone. Sorted.
+   */
+  drift: string[];
+}
+
 /**
- * Judge a recorded run against the Lock as it stands NOW.
+ * Judge the tree as it is NOW against the run's baseline and the Lock as it
+ * stands now — the scope half of a standalone verify or report, whose checks
+ * also run on the tree as it is now.
  *
- * A stored run holds everything this needs — the paths it touched, their
- * statuses, and the measured file and line counts — so nothing is re-run and
- * no tree is re-read. `classifyPath` is already a pure function of the Lock
- * and a path.
+ * Audit finding F5: the scope half used to be the run's stored list of
+ * changed files, rejudged. A denied file changed by hand after a clean run
+ * was never mentioned, and the report said "Done — verified. Only
+ * allowed.txt changed". The changed files are now found the way the run
+ * found them (classifyChanges against the same baseline) and every file
+ * that differs from how the run left it is named.
  *
- * `linesChanged` is carried over rather than recomputed. It is a measurement
- * against the run's own baseline, and re-deriving it would mean re-diffing a
- * tree that has since moved on; the measured number compared against the
- * current ceiling is the question actually being asked.
- *
- * A run made under `--allow-expand` is rejudged without scope violations,
- * because that is what the override recorded at the time.
+ * A run made under `--allow-expand` keeps its override for its own changes;
+ * what changed after it is judged like anything else, and the ceilings stay
+ * waived.
+ */
+export function judgeTreeNow(
+  rootDir: string,
+  lock: VibeCheck,
+  run: Pick<RunRecord, "changed" | "changedHashes" | "allowExpand">,
+  baseline: Baseline,
+): JudgedNow {
+  const changed = classifyChanges(rootDir, lock, baseline);
+  const untracked = changed.filter((c) => c.status === "??" || c.status === "!!").map((c) => c.path);
+  const budget: BudgetStats = {
+    filesChanged: changed.length,
+    maxFiles: lock.budget.maxFiles,
+    linesChanged: changedLineCount(rootDir, untracked, baseline),
+    maxLines: lock.budget.maxLines,
+  };
+  // How the run left each file. A record from before the hashes were kept
+  // can still show new paths; a later edit to the run's own file it cannot.
+  const left = new Map(run.changed.map((c) => [c.path, run.changedHashes?.[c.path]]));
+  const now = new Set(changed.map((c) => c.path));
+  const drift = new Set<string>();
+  for (const c of changed) {
+    if (!left.has(c.path)) drift.add(c.path);
+    else if (left.get(c.path) !== undefined && left.get(c.path) !== fingerprint(rootDir, c.path)) drift.add(c.path);
+  }
+  for (const c of run.changed) if (!now.has(c.path)) drift.add(c.path);
+  const violations = run.allowExpand
+    ? scopeViolations(changed.filter((c) => drift.has(c.path)))
+    : scopeViolations(changed, budget);
+  return { changed, budget, violations, drift: [...drift].sort() };
+}
+
+/**
+ * Judge a recorded run's own list against the Lock as it stands now — the
+ * fallback when the run's baseline is gone and the tree cannot be judged:
+ * nothing is re-read, and the report says what it could not see.
+ * `linesChanged` is the run's measurement, compared with today's ceiling.
  */
 export function rejudgeRun(
   run: Pick<RunRecord, "changed" | "budget" | "allowExpand">,

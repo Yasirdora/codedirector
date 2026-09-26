@@ -51,7 +51,9 @@ export function summarizeReport(report: ChangeReport): string {
     const more = notRun.length > 1 ? ` (${notRun.length - 1} more below)` : "";
     // More time is the remedy only for what ran out of it.
     const moreTime = notRun.some((i) => /timed out/.test(i.reason ?? "")) ? " (--test-timeout gives it more time)" : "";
-    const what = first ? `${first.subject} did not finish — ${first.reason ?? first.detail}` : report.incomplete[0];
+    const what = first
+      ? `${first.subject} did not finish — ${first.reason ?? first.detail}`
+      : report.incomplete[0].replace(/^NOT RUN /, "");
     sentences.push(
       `Not verified: ${what}${more}. Nothing broke that was checked, but this is unproven: ` +
         `check again with \`cdir verify ${report.lockId}\`${moreTime}, or run \`cdir undo\` to restore.`,
@@ -72,7 +74,16 @@ export function summarizeReport(report: ChangeReport): string {
     sentences.push(`The command itself failed. ${undoHint}`);
   }
 
-  // 2. Scope.
+  // 2. What changed after the run: said before the scope, which includes it.
+  if (report.drift.length > 0) {
+    const named = report.drift.slice(0, 3).join(", ") + (report.drift.length > 3 ? ` and ${report.drift.length - 3} more` : "");
+    sentences.push(
+      `${plural(report.drift.length, "file")} changed after the run, not by its command: ${named}. ` +
+        `This report judges the tree as it is now.`,
+    );
+  }
+
+  // 3. Scope.
   if (report.changed.length > 0) {
     if (outOfScope.length === 0) {
       const names = report.changed.map((c) => c.path);
@@ -89,12 +100,12 @@ export function summarizeReport(report: ChangeReport): string {
     }
   }
 
-  // 3. Checked promises.
+  // 4. Checked promises.
   if (held.length > 0) {
     sentences.push(`${plural(held.length, "promise")} held (checked).`);
   }
 
-  // 4. What still needs a human.
+  // 5. What still needs a human.
   if (judged.length > 0) {
     const named = judged
       .slice(0, 2)
@@ -106,7 +117,7 @@ export function summarizeReport(report: ChangeReport): string {
     );
   }
 
-  // 5. Incidental observations.
+  // 6. Incidental observations.
   if (report.findings.length > 0) {
     sentences.push(`${plural(report.findings.length, "observation")} noted along the way (not verified).`);
   }
@@ -133,7 +144,7 @@ export function formatReport(report: ChangeReport): string {
 
   lines.push(``);
   if (report.changed.length === 0 && !report.budget) {
-    lines.push(`Changed files: (no run record — verification only)`);
+    lines.push(`Changed files: unknown — no run record, so no baseline to find them against`);
   } else {
     const b = report.budget;
     lines.push(
@@ -149,7 +160,7 @@ export function formatReport(report: ChangeReport): string {
           : c.class === "out-of-budget"
             ? "OUT-OF-BUDGET"
             : "in-budget";
-      lines.push(`  ${mark} ${c.path}  ${tag}`);
+      lines.push(`  ${mark} ${c.path}  ${tag}${report.drift.includes(c.path) ? " · changed after the run" : ""}`);
     }
   }
 
@@ -231,7 +242,7 @@ export function formatReportMarkdown(report: ChangeReport): string {
     lines.push(`|---|---|`);
     for (const c of report.changed) {
       const tag = c.class === "denied" ? `**denied** (\`${c.matchedDeny}\`)` : c.class === "out-of-budget" ? "**out-of-budget**" : "in-budget";
-      lines.push(`| \`${c.path}\` | ${tag} |`);
+      lines.push(`| \`${c.path}\` | ${tag}${report.drift.includes(c.path) ? " · changed after the run" : ""} |`);
     }
   }
 

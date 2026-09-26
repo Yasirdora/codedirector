@@ -154,7 +154,10 @@ test("incomplete: a standalone verify with no baseline cannot verify what needs 
   const { root, lock } = await setup([{ kind: "api-unchanged", symbols: ["src/math.js#add"] }]);
   const report = await buildReport(root, lock.id);
   assert.equal(report.verdict, "incomplete");
-  assert.match(report.incomplete[0], /^NOT RUN api-unchanged · src\/math\.js#add: no pre-change baseline/);
+  assert.ok(
+    report.incomplete.some((i) => /^NOT RUN api-unchanged · src\/math\.js#add: no pre-change baseline/.test(i)),
+    report.incomplete.join("; "),
+  );
   finalizeLockStatus(root, report);
   assert.equal(loadLock(root, lock.id)!.status, "incomplete");
 });

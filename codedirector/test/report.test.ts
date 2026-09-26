@@ -291,7 +291,8 @@ test("report: standalone buildReport (no run) re-verifies and reports verificati
   assert.ok(!report.runRecordPath);
   assert.equal(report.changed.length, 0);
   const text = formatReport(report);
-  assert.ok(text.includes("no run record — verification only"));
+  assert.ok(text.includes("Changed files: unknown — no run record"));
+  assert.equal(report.verdict, "incomplete", "without a run the changed files cannot be judged");
   // tests still ran (self-contained), so the claim is measured
   assert.equal(report.counts.measured, 1);
 });
