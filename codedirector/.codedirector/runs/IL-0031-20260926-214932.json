@@ -1,0 +1,147 @@
+{
+  "allowExpand": false,
+  "baselinePath": ".codedirector/baselines/IL-0031-20260926-214932.json",
+  "baselineSha256": "5869aadfa7900dbb2716aa4677ce4eba3a52809775bd1e008f26c4554f143cc1",
+  "budget": {
+    "filesChanged": 6,
+    "linesChanged": 544,
+    "maxFiles": 6,
+    "maxLines": 650
+  },
+  "changed": [
+    {
+      "class": "in-budget",
+      "path": "docs/ROADMAP.md",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "README.md",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/checkpoint/index.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/cli-main.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/mcp/server.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "test/checkpoint.test.ts",
+      "status": "M"
+    }
+  ],
+  "changedHashes": {
+    "README.md": "70aaaa40462e46ce20006e1ee8cdfe576346650ab83bc37af7ab86e3622fefb9",
+    "docs/ROADMAP.md": "a3f52e4195ca4c0084e128b912dfeaaaf818da6b1eaa209dd125300851546269",
+    "src/checkpoint/index.ts": "3557a0f328c81d1605586ce1d74c99900833b7173cee23ea4e7a879312eab38c",
+    "src/cli-main.ts": "3c2a73722df318c3025f677627bdec21371f40c2b885167344282f14a1068333",
+    "src/mcp/server.ts": "c3d32f6cbc3215b278f87af993e5e412d0ba3bf3d0643815588cdf641bd6784e",
+    "test/checkpoint.test.ts": "c9b61fa31f0432eb5238a7ddebf1f17ac28df6e1e5478a8bf99aa6acdcc8ea06"
+  },
+  "checkpoint": {
+    "blobDir": "ckpt-blobs/ckpt-20260926T214928605",
+    "createdAt": "2026-09-26T21:49:28.620Z",
+    "dirty": false,
+    "id": "ckpt-20260926T214928605",
+    "ref": "71fd21e12a01c66982a1a49d09d05a54e245cba7",
+    "statusHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tag": "cdir/ckpt-20260926T214928605"
+  },
+  "command": [
+    "node",
+    "/tmp/claude-0/-home-user-mcp/03ffbd30-bffc-59ed-8e8b-79fea6c04402/scratchpad/apply-files.cjs",
+    "/tmp/claude-0/-home-user-mcp/03ffbd30-bffc-59ed-8e8b-79fea6c04402/scratchpad/spike10/codedirector",
+    "/tmp/claude-0/-home-user-mcp/03ffbd30-bffc-59ed-8e8b-79fea6c04402/scratchpad/il0031-files.txt"
+  ],
+  "exitCode": 0,
+  "finishedAt": "2026-09-26T21:49:32.847Z",
+  "incomplete": [],
+  "keepResults": [
+    {
+      "detail": "package.json unchanged",
+      "kind": "no-new-dependency",
+      "status": "ok"
+    },
+    {
+      "detail": "package-lock.json unchanged",
+      "kind": "no-new-dependency",
+      "status": "ok"
+    },
+    {
+      "detail": "npm test is green on the owner's Mac — the gate the owner set (288/288 now: this lock adds eight tests); this container can only stand in for it — not machine-checkable; human judges",
+      "kind": "custom",
+      "status": "custom"
+    }
+  ],
+  "lockId": "IL-0031",
+  "startedAt": "2026-09-26T21:49:32.816Z",
+  "verification": {
+    "baselinePath": ".codedirector/baselines/IL-0031-20260926-214932.json",
+    "counts": {
+      "asserted": 0,
+      "measured": 1,
+      "proven": 3,
+      "unchecked": 1
+    },
+    "incomplete": [],
+    "items": [
+      {
+        "artifactRef": ".codedirector/baselines/IL-0031-20260926-214932.json#manifests[package.json]",
+        "clauseKind": "no-new-dependency",
+        "detail": "package.json unchanged",
+        "evidenceClass": "proven",
+        "source": "keep-clause",
+        "subject": "no-new-dependency · package.json",
+        "verdict": "held"
+      },
+      {
+        "artifactRef": ".codedirector/baselines/IL-0031-20260926-214932.json#manifests[package-lock.json]",
+        "clauseKind": "no-new-dependency",
+        "detail": "package-lock.json unchanged",
+        "evidenceClass": "proven",
+        "source": "keep-clause",
+        "subject": "no-new-dependency · package-lock.json",
+        "verdict": "held"
+      },
+      {
+        "artifactRef": "node node_modules/typescript/bin/tsc --noEmit -p . → exit 0",
+        "detail": "tsc --noEmit clean",
+        "evidenceClass": "proven",
+        "source": "typecheck",
+        "subject": "typecheck · tsc --noEmit",
+        "verdict": "held"
+      },
+      {
+        "artifactRef": "sh -c \"npm test\" → exit 0",
+        "detail": "verifyCommand passed: npm test",
+        "evidenceClass": "measured",
+        "source": "verify-command",
+        "subject": "verifyCommand · npm test",
+        "verdict": "held"
+      },
+      {
+        "clauseKind": "custom",
+        "detail": "not machine-checkable — human judges",
+        "evidenceClass": "unchecked",
+        "reason": "not machine-checkable — human judges",
+        "source": "keep-clause",
+        "subject": "custom · npm test is green on the owner's Mac — the gate the owner set (288/288 now: this lock adds eight tests); this container can only stand in for it",
+        "verdict": "unchecked"
+      }
+    ],
+    "lockId": "IL-0031",
+    "verifiedAt": "2026-09-26T21:50:59.743Z",
+    "violations": []
+  },
+  "violations": []
+}

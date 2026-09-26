@@ -336,13 +336,19 @@ const TOOLS: ToolDef[] = [
       const ckpt = latestCheckpoint(root);
       if (!ckpt) return fail("no checkpoint recorded — nothing to undo");
       const result = undo(root, { force: a.force === true });
-      return json({
+      const body = {
         restoredTag: result.checkpoint.tag,
         ref: result.checkpoint.ref,
         forced: result.forced,
         discardedChanges: result.lostFiles,
         deletedUntracked: result.deletedUntracked,
-      });
+        notRestored: result.notRestored,
+      };
+      // Checked, not assumed: files that still differ from the checkpoint make this an error.
+      if (result.notRestored.length > 0) {
+        return fail(`undo did NOT fully restore the checkpoint — these still differ: ${result.notRestored.join(", ")}\n${JSON.stringify(body, null, 2)}`);
+      }
+      return json(body);
     },
   },
 ];

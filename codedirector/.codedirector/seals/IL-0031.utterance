@@ -1,0 +1,2 @@
+Mac gate passed: 280/280, 0 failures, at 71fd21e. Open IL-0030's PR — once it's up I'll have it merged, same as #4 and #5.
+Then proceed with F1b (undo resurrecting a file deleted before the checkpoint, and the inaccurate undo preview).
