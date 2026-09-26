@@ -12,7 +12,9 @@
  *      a logged override). Nothing is auto-reverted — the human decides.
  *   6. Write the run record to .codedirector/runs/.
  *
- * Exit code: 0 only if the command succeeded AND no violations.
+ * Exit code: 0 verified — the command succeeded, nothing was violated and
+ * every check the Lock requires ran; 1 failed; 3 incomplete — nothing was
+ * violated, but a required check did not finish (RUN_EXIT).
  */
 
 import * as fs from "node:fs";
@@ -38,6 +40,17 @@ import {
 } from "./classify";
 import { verifyWithBaseline, VerifyOptions } from "../verify/verify";
 import { ProbePutBack, VerificationReport } from "../verify/types";
+
+/** Exit codes of a run, a verify and a report. 2 stays the CLI's usage error. */
+export const RUN_EXIT = { verified: 0, failed: 1, incomplete: 3 } as const;
+
+export type RunVerdict = keyof typeof RUN_EXIT;
+
+/** failed beats incomplete beats verified: a broken promise is the first thing to know. */
+export function runVerdict(commandSucceeded: boolean, violations: string[], incomplete: string[]): RunVerdict {
+  if (!commandSucceeded || violations.length > 0) return "failed";
+  return incomplete.length > 0 ? "incomplete" : "verified";
+}
 
 export interface KeepResult {
   kind: string;
@@ -67,6 +80,12 @@ export interface RunRecord {
   budget: BudgetStats;
   keepResults: KeepResult[];
   violations: string[];
+  /**
+   * Required checks that did not finish ("NOT RUN <subject>: <reason>").
+   * Any entry and the run is incomplete, not verified. Absent in records
+   * written before it existed.
+   */
+  incomplete?: string[];
   /** True when --allow-expand downgraded scope violations to logged overrides. */
   allowExpand: boolean;
   /** Full verification-ladder result (present unless run with verify disabled). */
@@ -87,14 +106,15 @@ export interface RunOptions {
   verify?: boolean;
   /** Options passed through to the verifier (timeouts, env, typecheck toggle). */
   verifyOptions?: VerifyOptions;
-  /** Update the Lock's status after the run (verified/failed; default true). */
+  /** Update the Lock's status after the run (verified/incomplete/failed; default true). */
   updateStatus?: boolean;
 }
 
 export interface RunOutcome {
   record: RunRecord;
   recordPath: string;
-  /** Process exit code: 0 only when command succeeded and no violations. */
+  verdict: RunVerdict;
+  /** RUN_EXIT[verdict]: 0 verified · 1 failed · 3 incomplete. */
   exitCode: number;
 }
 
@@ -113,8 +133,9 @@ function checkKeepClauses(
         for (const id of clause.symbols ?? []) {
           const before = baseline.signatures[id];
           const sym = graphAfter.symbols.get(id);
-          if (before === undefined) continue; // not captured (did not resolve pre-run)
-          if (!sym) {
+          if (before === undefined) {
+            results.push({ kind: clause.kind, detail: `${id} — not captured in the baseline (did not resolve pre-run)`, status: "deferred" });
+          } else if (!sym) {
             results.push({ kind: clause.kind, detail: `${id} no longer exists`, status: "violated" });
           } else if (signatureHash(sym.signature) !== before) {
             results.push({ kind: clause.kind, detail: `signature changed: ${id}`, status: "violated" });
@@ -152,14 +173,14 @@ function checkKeepClauses(
       case "output-unchanged":
         results.push({
           kind: clause.kind,
-          detail: `${clause.command ?? "(no command)"} — stored; executed by the Stage 3 runner`,
+          detail: `${clause.command ?? "(no command)"} — not run: verification disabled`,
           status: "deferred",
         });
         break;
       case "tests-pass":
         results.push({
           kind: clause.kind,
-          detail: `${clause.glob ?? "(no glob)"} — stored; executed by the Stage 3 runner`,
+          detail: `${clause.glob ?? "(no glob)"} — not run: verification disabled`,
           status: "deferred",
         });
         break;
@@ -292,6 +313,14 @@ export async function runWithLock(
   // --allow-expand is the logged override for SCOPE growth only; a broken
   // KEEP clause is never overridden (the rule that gives the Lock teeth).
   const violations = allowExpand ? keepViolations : [...scope, ...keepViolations];
+  // What the Lock requires and nobody checked. With verification off, that
+  // is every deferred clause and the verifyCommand, which did not run.
+  const incomplete = verification
+    ? verification.incomplete
+    : [
+        ...keepResults.filter((r) => r.status === "deferred").map((r) => `NOT RUN ${r.kind}: ${r.detail}`),
+        ...(lock.verifyCommand ? [`NOT RUN verifyCommand · ${lock.verifyCommand}: verification disabled`] : []),
+      ];
 
   const record: RunRecord = {
     lockId: lock.id,
@@ -306,6 +335,7 @@ export async function runWithLock(
     budget,
     keepResults,
     violations,
+    incomplete,
     allowExpand,
     ...(verification ? { verification } : {}),
   };
@@ -314,16 +344,15 @@ export async function runWithLock(
   const recordPath = path.join(runsDir(rootDir), `${lock.id}-${ts}.json`);
   fs.writeFileSync(recordPath, stableStringify(record), "utf8");
 
-  const exitCode = commandExit === 0 && violations.length === 0 ? 0 : 1;
+  const verdict = runVerdict(commandExit === 0, violations, incomplete);
 
-  // The Lock's status reflects the latest verdict: everything passed →
-  // verified; any violation or a failed command → failed.
+  // The Lock's status is the latest verdict.
   if (opts.updateStatus !== false) {
-    lock.status = exitCode === 0 ? "verified" : "failed";
+    lock.status = verdict;
     saveLock(rootDir, lock);
   }
 
-  return { record, recordPath, exitCode };
+  return { record, recordPath, verdict, exitCode: RUN_EXIT[verdict] };
 }
 
 /** Human-readable violation report printed after a failed run. */
@@ -363,6 +392,23 @@ export function formatRunReport(outcome: RunOutcome): string {
     );
   } else if (r.allowExpand) {
     lines.push(``, `note: --allow-expand was passed; out-of-budget scope was accepted (logged override).`);
+  }
+  const incomplete = r.incomplete ?? [];
+  if (outcome.verdict === "incomplete") {
+    lines.push(``, `NOT VERIFIED — ${incomplete.length} required check(s) did not finish:`);
+    for (const i of incomplete) lines.push(`  ? ${i}`);
+    const recheck = incomplete.some((i) => /timed out/.test(i))
+      ? `  cdir verify ${r.lockId} --test-timeout <ms>   check again, with more time for tests and the verifyCommand`
+      : `  cdir verify ${r.lockId}   check again once the reason above is dealt with`;
+    lines.push(
+      ``,
+      `Nothing was violated and nothing was reverted, but nothing is verified either. You decide:`,
+      recheck,
+      `  cdir undo            restore the checkpoint (${r.checkpoint.tag})`,
+    );
+  } else if (incomplete.length > 0) {
+    lines.push(``, `Also not run (${incomplete.length}):`);
+    for (const i of incomplete) lines.push(`  ? ${i}`);
   }
   return lines.join("\n");
 }

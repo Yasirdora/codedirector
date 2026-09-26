@@ -48,6 +48,7 @@ import { defaultDomains, DomainRegistry } from "../domain/registry";
 import type { DiagnosticsCheck } from "../domain/types";
 import {
   countByClass,
+  incompleteChecks,
   ProbePutBack,
   VerificationItem,
   VerificationReport,
@@ -516,6 +517,7 @@ export function verifyWithBaseline(
     items,
     ...(putBack.length > 0 ? { putBack } : {}),
     violations,
+    incomplete: incompleteChecks(items),
     counts: countByClass(items),
   };
 }

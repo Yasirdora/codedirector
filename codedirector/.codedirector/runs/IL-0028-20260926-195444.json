@@ -1,0 +1,197 @@
+{
+  "allowExpand": false,
+  "baselinePath": ".codedirector/baselines/IL-0028-20260926-195444.json",
+  "baselineSha256": "c9bbad532eddd68c4f49676226673cae9f7bf41802d1d58ac9d718ab74d8e097",
+  "budget": {
+    "filesChanged": 18,
+    "linesChanged": 605,
+    "maxFiles": 18,
+    "maxLines": 700
+  },
+  "changed": [
+    {
+      "class": "in-budget",
+      "path": "docs/ROADMAP.md",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "eval/cases/20-verify-timeout-incomplete.yaml",
+      "status": "??"
+    },
+    {
+      "class": "in-budget",
+      "path": "eval/README.md",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "eval/run.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "README.md",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/cli-main.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/index.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/lock/seal.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/lock/show.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/lock/types.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/mcp/server.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/report/format.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/report/report.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/run/run.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/verify/types.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "src/verify/verify.ts",
+      "status": "M"
+    },
+    {
+      "class": "in-budget",
+      "path": "test/incomplete.test.ts",
+      "status": "??"
+    },
+    {
+      "class": "in-budget",
+      "path": "test/verify.test.ts",
+      "status": "M"
+    }
+  ],
+  "checkpoint": {
+    "blobDir": "ckpt-blobs/ckpt-20260926T195439856",
+    "createdAt": "2026-09-26T19:54:39.870Z",
+    "dirty": false,
+    "id": "ckpt-20260926T195439856",
+    "ref": "bb4b0cdb85b1a28f0402de04f196293756b1b8fe",
+    "statusHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tag": "cdir/ckpt-20260926T195439856"
+  },
+  "command": [
+    "node",
+    "/tmp/claude-0/-home-user-mcp/03ffbd30-bffc-59ed-8e8b-79fea6c04402/scratchpad/apply-files.cjs",
+    "/tmp/claude-0/-home-user-mcp/03ffbd30-bffc-59ed-8e8b-79fea6c04402/scratchpad/spike7/codedirector",
+    "/tmp/claude-0/-home-user-mcp/03ffbd30-bffc-59ed-8e8b-79fea6c04402/scratchpad/il0028-files.txt"
+  ],
+  "exitCode": 0,
+  "finishedAt": "2026-09-26T19:54:44.422Z",
+  "keepResults": [
+    {
+      "detail": "package.json unchanged",
+      "kind": "no-new-dependency",
+      "status": "ok"
+    },
+    {
+      "detail": "package-lock.json unchanged",
+      "kind": "no-new-dependency",
+      "status": "ok"
+    },
+    {
+      "detail": "npm test is green on the owner's Mac — the gate the owner set (260/260 now: this lock adds ten tests); this container can only stand in for it — not machine-checkable; human judges",
+      "kind": "custom",
+      "status": "custom"
+    }
+  ],
+  "lockId": "IL-0028",
+  "startedAt": "2026-09-26T19:54:44.384Z",
+  "verification": {
+    "baselinePath": ".codedirector/baselines/IL-0028-20260926-195444.json",
+    "counts": {
+      "asserted": 0,
+      "measured": 1,
+      "proven": 3,
+      "unchecked": 1
+    },
+    "items": [
+      {
+        "artifactRef": ".codedirector/baselines/IL-0028-20260926-195444.json#manifests[package.json]",
+        "clauseKind": "no-new-dependency",
+        "detail": "package.json unchanged",
+        "evidenceClass": "proven",
+        "source": "keep-clause",
+        "subject": "no-new-dependency · package.json",
+        "verdict": "held"
+      },
+      {
+        "artifactRef": ".codedirector/baselines/IL-0028-20260926-195444.json#manifests[package-lock.json]",
+        "clauseKind": "no-new-dependency",
+        "detail": "package-lock.json unchanged",
+        "evidenceClass": "proven",
+        "source": "keep-clause",
+        "subject": "no-new-dependency · package-lock.json",
+        "verdict": "held"
+      },
+      {
+        "artifactRef": "node node_modules/typescript/bin/tsc --noEmit -p . → exit 0",
+        "detail": "tsc --noEmit clean",
+        "evidenceClass": "proven",
+        "source": "typecheck",
+        "subject": "typecheck · tsc --noEmit",
+        "verdict": "held"
+      },
+      {
+        "artifactRef": "sh -c \"npm test\" → exit 0",
+        "detail": "verifyCommand passed: npm test",
+        "evidenceClass": "measured",
+        "source": "verify-command",
+        "subject": "verifyCommand · npm test",
+        "verdict": "held"
+      },
+      {
+        "clauseKind": "custom",
+        "detail": "not machine-checkable — human judges",
+        "evidenceClass": "unchecked",
+        "reason": "not machine-checkable — human judges",
+        "source": "keep-clause",
+        "subject": "custom · npm test is green on the owner's Mac — the gate the owner set (260/260 now: this lock adds ten tests); this container can only stand in for it",
+        "verdict": "unchecked"
+      }
+    ],
+    "lockId": "IL-0028",
+    "verifiedAt": "2026-09-26T19:56:12.941Z",
+    "violations": []
+  },
+  "violations": []
+}

@@ -6,6 +6,58 @@ can become a GitHub issue as it stands.
 
 ## 0.4.6 candidates
 
+### A required check that did not finish was reported "verified"
+
+**Status: landed (IL-0028).** Found by an external audit of 0.4.5 and
+reproduced on main (bb4b0cd): a lock whose `verifyCommand` was stopped by
+its timeout ended "Done — verified. … verifyCommand timed out after 300ms",
+exit 0, and the Lock was marked verified. Only a violation could block the
+verdict, and a check that never finished is not a violation. The same held
+for a `tests-pass` run that timed out or matched files its runner cannot
+run, an `output-unchanged` command that could not run after the change, and
+a structural clause with no baseline to compare against.
+
+There are now three outcomes. **Failed** (a violation, or the command
+failed; exit 1) beats **incomplete** (nothing violated, but a check the Lock
+requires did not finish; exit 3, lock status `incomplete`) beats
+**verified** (exit 0). Required means every KEEP clause except `custom`, and
+the `verifyCommand` (`isRequiredCheck` in `src/verify/types.ts`, the one
+place the rule lives). A `custom` clause and the ladder's own typecheck stay
+named in the Unchecked bucket without blocking. The summary leads with "Not
+verified: <check> did not finish — <reason>"; `run_locked` returns an error
+that says so; `cdir verify <id> --test-timeout MS` re-checks with more time.
+Guarded by `test/incomplete.test.ts` and eval case 20; removing the rule
+fails 10 tests, and widening it to custom clauses and the typecheck fails 13.
+
+One earlier test pinned the old behaviour: a `tests-pass` glob that reaches
+Swift files (which `node --test` cannot run) exited 0. It is now incomplete.
+
+**Still open from the same audit** (all reproduced on bb4b0cd):
+
+- A standalone `cdir report` re-runs today's checks but prints the run's
+  old list of changed files: a file changed after the run is not mentioned,
+  and the report says "Done — verified. Only allowed.txt changed".
+- Swift overloads share one symbol id (`Store.swift#Store.save` for
+  `save(_: Int)` and `save(_: String)`), so changing one overload's
+  parameter type passes `api-unchanged`.
+- `undo --force` brings back a tracked file deleted before the checkpoint
+  (listed under *Untracked directories…* below).
+- The parser loads every grammar before parsing anything: a missing Swift
+  grammar stops a TypeScript-only project from being indexed.
+
+### Stopping cdir during a check leaves the check running
+
+**Status: open.** Found while building IL-0028. Reproduced on bb4b0cd:
+SIGTERM to `cdir run` while its `verifyCommand` (`sleep 20; echo late >
+a.txt.probe`) runs. cdir exits within a second, but the check's supervisor
+is re-parented to init and the check runs to the end — up to its own
+timeout, 15 minutes for a suite — and `a.txt.probe` is left in the tree:
+the put-back that isolates checks runs in cdir, which is gone. Wanted: when
+cdir is stopped, stop its running check's process group and put the tree
+back before exiting, and say so on stderr. An MCP client cancelling a
+request does exactly this, so it belongs with the item below about long
+checks blocking the MCP server.
+
 ### A missing compiler read as a broken one; the suite read the developer's git settings
 
 **Status: landed (IL-0026), completed by IL-0027.** IL-0027: the owner's

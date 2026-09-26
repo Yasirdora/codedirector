@@ -68,6 +68,21 @@ best. **A claim without an artifact reference is automatically Asserted —
 enforced in code** (`enforceArtifactRule`), not by discipline. The Unchecked
 bucket is always rendered, even when empty; a report that hides it is lying.
 
+**"Verified" means every check the Lock requires ran and held.** Required:
+every KEEP clause except `custom`, and the `verifyCommand`. When one of them
+did not finish — timed out, could not run, had no baseline to compare
+against — the verdict is **incomplete**: nothing was violated, and nothing is
+verified either. A `custom` clause (a human judges it) and the typecheck the
+ladder adds on its own (the Lock did not ask for it) are named in the
+Unchecked bucket but do not block the verdict; a Lock that needs the
+typecheck guaranteed puts it in its `verifyCommand`.
+
+| Verdict | Lock status | Exit | When |
+|---|---|---|---|
+| verified | `verified` | 0 | the command succeeded, nothing violated, every required check ran |
+| incomplete | `incomplete` | 3 | nothing violated, but a required check did not finish |
+| failed | `failed` | 1 | a violation, or the command failed (beats incomplete) |
+
 Two honesty limits worth knowing:
 
 - **Signature evidence covers the full callable surface** — including
@@ -303,11 +318,13 @@ Verified execution inside an active Lock:
    KEEP clause still fails;
 5. **run the verification ladder** (see below) against the baseline;
 6. write the run record (including the full verification result) to
-   `.codedirector/runs/`, update the lock status (`verified` / `failed`), and
+   `.codedirector/runs/`, update the lock status (`verified` / `incomplete` /
+   `failed`), and
    emit the Change Report (`--no-report` suppresses the rendering, not the
    verification).
 
-Exit code: `0` only if the command succeeded AND no violations. `cdir run`
+Exit code: `0` verified, `1` failed, `3` incomplete (see *Evidence classes*
+above; `2` is a usage error). `cdir run`
 without a lock id is refused — ad-hoc mode is a later phase; the whole point
 is the contract.
 
@@ -357,7 +374,9 @@ permissions — a fully sandboxed verifier is a later phase.
 Re-runs the ladder without re-running the change command: latest baseline for
 the lock, fresh index, all rungs. Without any baseline, structural and output
 checks report Unchecked ("no pre-change baseline") while tests and typecheck
-still run. Updates the lock status; exit 0 only when verified.
+still run — so a Lock with structural clauses is incomplete until a run
+captures one. Updates the lock status; exit codes as for `cdir run`. After an
+incomplete run, `cdir verify <id> --test-timeout MS` re-checks with more time.
 
 It also re-**judges**. Every path the run recorded is re-classified against
 the Lock as it stands now, and both ceilings are re-read from it — so raising
@@ -394,8 +413,10 @@ with a plain-language summary generated from the same data as the detail
 ("Done — verified. Only src/preview.ts changed, within the agreed scope. 2
 promises held (checked). 1 thing needs your judgment…" — or, on failure,
 "Blocked: src/export.ts was outside the agreed scope. Nothing was reverted —
-run `cdir undo` to restore."). The summary never says "verified" when
-violations exist; the detail follows underneath:
+run `cdir undo` to restore." — or, when a required check did not finish,
+"Not verified: verifyCommand · npm test did not finish — verifyCommand timed
+out after 60000ms…"). The summary never says "verified" when violations
+exist or a required check did not finish; the detail follows underneath:
 
 - lock id + the original utterance, verbatim and immutable;
 - changed files with classification (in-budget / out-of-budget / denied) and

@@ -6,7 +6,7 @@
  * the run is refused until the user re-approves (`lock check` +
  * `lock activate`, which re-seals).
  *
- * Status transitions (active → verified/failed) never trip the seal:
+ * Status transitions (active → verified/incomplete/failed) never trip the seal:
  * `status` is excluded from the hash, and saveLock refreshes the entry
  * after every internal write.
  *
@@ -63,9 +63,10 @@ export function refreshSeal(rootDir: string, lock: VibeCheck): void {
 
 /**
  * The re-approval refusal, or null when the Lock may run. Every Lock that can
- * still run is gated: active, and verified/failed too, because `cdir run`
- * accepts both. A Lock turns verified after its first clean run and keeps
- * running for the rest of the work; failed runs are retried the same way.
+ * still run is gated: active, and verified/incomplete/failed too, because
+ * `cdir run` accepts them all. A Lock turns verified after its first clean
+ * run and keeps running for the rest of the work; incomplete and failed runs
+ * are retried the same way.
  * Drafts and abandoned Locks never run, so they are not gated here.
  *
  * Field case (2026-09-24): the gate covered active Locks only, on the reading

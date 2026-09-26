@@ -13,9 +13,14 @@
 
 export const LOCK_SCHEMA_VERSION = 1;
 
-export type LockStatus = "draft" | "active" | "verified" | "failed" | "abandoned";
+/**
+ * After a run: verified (every required check ran and held), failed (a
+ * violation, or the command failed), incomplete (nothing broke, but a
+ * required check did not finish — so nothing is verified either).
+ */
+export type LockStatus = "draft" | "active" | "verified" | "incomplete" | "failed" | "abandoned";
 
-export const LOCK_STATUSES: LockStatus[] = ["draft", "active", "verified", "failed", "abandoned"];
+export const LOCK_STATUSES: LockStatus[] = ["draft", "active", "verified", "incomplete", "failed", "abandoned"];
 
 export type KeepClauseKind =
   | "output-unchanged"

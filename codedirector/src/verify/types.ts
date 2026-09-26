@@ -68,8 +68,39 @@ export interface VerificationReport {
   putBack?: ProbePutBack[];
   /** "KEEP <kind>: <detail>" / "VERIFY <source>: <detail>" for every violated item. */
   violations: string[];
+  /**
+   * "NOT RUN <subject>: <reason>" for every required check that did not
+   * finish (see isRequiredCheck). Any entry makes the outcome incomplete —
+   * never verified.
+   */
+  incomplete: string[];
   /** Items per evidence class (all four keys always present). */
   counts: Record<EvidenceClass, number>;
+}
+
+/**
+ * A check the Lock itself asks for: every KEEP clause but custom, and the
+ * verifyCommand. When one of these did not finish — timed out, could not
+ * run, had no baseline to compare against — the run is not verified: it is
+ * incomplete, whatever else held. Reproduced before this rule: a
+ * verifyCommand stopped by its timeout still ended "Done — verified", exit
+ * 0, because only violations could block the verdict.
+ *
+ * Not required, and only named in the Unchecked bucket: a custom clause
+ * (a human judges it, by definition), and the typecheck the ladder adds on
+ * its own (the Lock did not ask for it; a Lock that needs it puts it in the
+ * verifyCommand).
+ */
+export function isRequiredCheck(item: VerificationItem): boolean {
+  if (item.source === "verify-command") return true;
+  return item.source === "keep-clause" && item.clauseKind !== undefined && item.clauseKind !== "custom";
+}
+
+/** The required checks that did not finish, as "NOT RUN <subject>: <reason>". */
+export function incompleteChecks(items: VerificationItem[]): string[] {
+  return items
+    .filter((i) => i.verdict === "unchecked" && isRequiredCheck(i))
+    .map((i) => `NOT RUN ${i.subject}: ${i.reason ?? i.detail}`);
 }
 
 export function countByClass(items: VerificationItem[]): Record<EvidenceClass, number> {
