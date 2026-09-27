@@ -22,9 +22,9 @@ That single install gives you:
 
 - **the skill** — auto-loaded at every session start, so the agent drafts
   a Vibe Check and waits for approval before editing;
-- **the MCP server** — the eight tools (`repo_map`, `blast_radius`,
-  `lock_draft`, `lock_check`, `lock_activate`, `run_locked`, `report`,
-  `undo`);
+- **the MCP server** — the nine tools (`repo_map`, `blast_radius`,
+  `lock_draft`, `lock_amend`, `lock_check`, `lock_activate`, `run_locked`,
+  `report`, `undo`);
 - **the PreToolUse hook** — edit-tool calls are checked against the active
   Lock: deny-listed and out-of-budget files are blocked with the reason
   written back to the agent, and edits with no active Lock get a reminder.
@@ -99,9 +99,9 @@ Start a new session (or `/reload`) so it gets picked up.
 
 In a scratch project (`mkdir ~/cdir-test && cd ~/cdir-test && git init`):
 
-1. Start `kimi`, run `/mcp` — `codedirector` should show its eight tools
-   (`repo_map`, `blast_radius`, `lock_draft`, `lock_check`, `lock_activate`,
-   `run_locked`, `report`, `undo`).
+1. Start `kimi`, run `/mcp` — `codedirector` should show its nine tools
+   (`repo_map`, `blast_radius`, `lock_draft`, `lock_amend`, `lock_check`,
+   `lock_activate`, `run_locked`, `report`, `undo`).
 2. Ask for something vague — "create something better than AnkiMobile".
 3. **Pass:** it drafts a Vibe Check — goal, files in budget, denied
    zones — and waits for your approval before touching anything.
